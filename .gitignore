@@ -1,0 +1,26 @@
+# Claude Code lokale Einstellungen (maschinenspezifisch, nicht teilen)
+.claude/settings.local.json
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+*.egg-info/
+
+# Node
+node_modules/
+dist/
+build/
+
+# Umgebungsvariablen / Secrets
+.env
+.env.local
+*.key
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
