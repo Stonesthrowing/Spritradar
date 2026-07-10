@@ -1,0 +1,25 @@
+{
+  "fuel_type": "e10",
+  "timezone": "Europe/Berlin",
+  "history_window_days": 14,
+  "min_history_for_score": 4,
+  "send_window_local_hours": [7, 10],
+  "locations": [
+    {
+      "name": "Zuhause – Krefeld",
+      "plz": "47798",
+      "emoji": "🏠",
+      "lat": 51.3350,
+      "lng": 6.5850,
+      "radius_km": 4.0
+    },
+    {
+      "name": "Arbeit – Neukirchen-Vluyn",
+      "plz": "47506",
+      "emoji": "🏢",
+      "lat": 51.4450,
+      "lng": 6.5400,
+      "radius_km": 4.0
+    }
+  ]
+}

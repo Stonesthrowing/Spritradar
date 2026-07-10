@@ -1,0 +1,22 @@
+name: Get Telegram Chat ID
+
+# Einmalig manuell starten, nachdem du dem Bot in Telegram /start geschickt hast.
+# Zeigt die Chat-ID im Log an und schickt dir eine Bestätigung.
+# Danach die ID als Secret TELEGRAM_CHAT_ID hinterlegen.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  chat-id:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - name: Chat-ID ermitteln
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+        run: python -m spritradar.get_chat_id
