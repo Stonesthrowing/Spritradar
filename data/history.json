@@ -1,5 +1,5 @@
 {
-  "last_sent_date": "2026-07-11",
+  "last_sent_date": "2026-07-12",
   "locations": {
     "47798": [
       {
@@ -11,6 +11,11 @@
         "date": "2026-07-11",
         "min_price": 1.959,
         "station": "Die Zapfsäule Krefeld (Krefeld)"
+      },
+      {
+        "date": "2026-07-12",
+        "min_price": 1.959,
+        "station": "CleanCar Tankautomat (Krefeld)"
       }
     ],
     "47506": [
@@ -21,6 +26,11 @@
       },
       {
         "date": "2026-07-11",
+        "min_price": 1.999,
+        "station": "PM (Neukirchen-Vluyn)"
+      },
+      {
+        "date": "2026-07-12",
         "min_price": 1.999,
         "station": "PM (Neukirchen-Vluyn)"
       }
