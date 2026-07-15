@@ -1,5 +1,5 @@
 {
-  "last_sent_date": "2026-07-14",
+  "last_sent_date": "2026-07-15",
   "locations": {
     "47798": [
       {
@@ -25,6 +25,11 @@
       {
         "date": "2026-07-14",
         "min_price": 1.969,
+        "station": "Die Zapfsäule Krefeld (Krefeld)"
+      },
+      {
+        "date": "2026-07-15",
+        "min_price": 2.009,
         "station": "Die Zapfsäule Krefeld (Krefeld)"
       }
     ],
@@ -52,6 +57,11 @@
       {
         "date": "2026-07-14",
         "min_price": 1.989,
+        "station": "PM (Neukirchen-Vluyn)"
+      },
+      {
+        "date": "2026-07-15",
+        "min_price": 2.039,
         "station": "PM (Neukirchen-Vluyn)"
       }
     ]
