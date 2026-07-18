@@ -7,6 +7,7 @@ mit Komma/Punkt. Emojis funktionieren trotzdem.
 from __future__ import annotations
 
 import datetime as dt
+from dataclasses import dataclass, field
 
 import holidays
 
@@ -15,8 +16,30 @@ from .scoring import Score
 WEEKDAYS_DE = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]
 
 
+@dataclass
+class PreferredResult:
+    label: str
+    price: float | None            # None = heute keine Daten (geschlossen/außerhalb Radius)
+    delta_to_cheapest: float | None  # in €, >0 = teurer als günstigste
+    is_cheapest: bool = False
+
+
+@dataclass
+class LocationResult:
+    name: str
+    emoji: str
+    score: Score
+    cheapest_label: str
+    preferred: list[PreferredResult] = field(default_factory=list)
+
+
 def _euro(price: float) -> str:
     return f"{price:.3f}".replace(".", ",") + " €"
+
+
+def _delta_ct(delta_eur: float) -> str:
+    ct = delta_eur * 100
+    return f"{ct:+.1f}".replace(".", ",") + " ct"
 
 
 def _bar(value: int | None) -> str:
@@ -28,17 +51,17 @@ def _bar(value: int | None) -> str:
 
 def build_message(
     now_local: dt.datetime,
-    results: list[tuple[str, str, Score, str]],
+    results: list[LocationResult],
 ) -> str:
-    """results: Liste von (name, emoji, Score, günstigste-Tankstelle-Label)."""
     date_str = f"{WEEKDAYS_DE[now_local.weekday()]}, {now_local:%d.%m.%Y}"
     lines = [f"⛽ Spritradar – Super E10", date_str, ""]
 
-    for name, emoji, sc, station in results:
-        head = f"{emoji} {name}"
+    for res in results:
+        sc = res.score
+        head = f"{res.emoji} {res.name}"
         if sc.value is None:
             lines.append(head)
-            lines.append(f"   Günstigste: {_euro(sc.today_price)} – {station}")
+            lines.append(f"   Günstigste: {_euro(sc.today_price)} – {res.cheapest_label}")
             if sc.n_history > 0:
                 lines.append(
                     f"   Verlauf: Ø {_euro(sc.avg)} · min {_euro(sc.minimum)} "
@@ -49,7 +72,7 @@ def build_message(
         else:
             lines.append(f"{head}:  {sc.value}/10  {sc.recommendation}")
             lines.append(f"   {_bar(sc.value)}")
-            lines.append(f"   Günstigste: {_euro(sc.today_price)} – {station}")
+            lines.append(f"   Günstigste: {_euro(sc.today_price)} – {res.cheapest_label}")
             lines.append(
                 f"   {sc.n_history}-Tage: Ø {_euro(sc.avg)} · "
                 f"min {_euro(sc.minimum)} · max {_euro(sc.maximum)}"
@@ -58,6 +81,9 @@ def build_message(
                 lines.append(
                     f"   → günstiger als an {round(sc.pct_cheaper * 100)}% der letzten Tage"
                 )
+
+        for pref in res.preferred:
+            lines.append(_preferred_line(pref))
         lines.append("")
 
     lines.append(_outlook_note(now_local))
@@ -66,6 +92,14 @@ def build_message(
         "morgens ist Tageshoch. Der Score bewertet das *Tagesniveau*."
     )
     return "\n".join(lines).strip()
+
+
+def _preferred_line(pref: PreferredResult) -> str:
+    if pref.price is None:
+        return f"   ⭐ {pref.label}: aktuell keine Daten (geschlossen?)"
+    if pref.is_cheapest or (pref.delta_to_cheapest is not None and pref.delta_to_cheapest < 0.0005):
+        return f"   ⭐ {pref.label}: {_euro(pref.price)} (= günstigste hier 👍)"
+    return f"   ⭐ {pref.label}: {_euro(pref.price)} ({_delta_ct(pref.delta_to_cheapest)} teurer)"
 
 
 def _outlook_note(now_local: dt.datetime) -> str:

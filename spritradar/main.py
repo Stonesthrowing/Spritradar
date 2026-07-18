@@ -15,9 +15,9 @@ from zoneinfo import ZoneInfo
 from . import history as hist
 from . import telegram
 from .config import load_config, load_secrets
-from .message import build_message
+from .message import LocationResult, PreferredResult, build_message
 from .scoring import score_today
-from .tankerkoenig import fetch_stations
+from .tankerkoenig import fetch_stations, find_preferred
 
 
 def _within_send_window(now_local: dt.datetime, window: tuple[int, int]) -> bool:
@@ -61,9 +61,32 @@ def run() -> int:
         cheapest = stations[0]
         recent = hist.recent_prices(data, loc.plz, cfg.history_window_days, exclude_date=today)
         score = score_today(cheapest.price, recent, cfg.min_history_for_score)
-        results.append((loc.name, loc.emoji, score, cheapest.label))
 
-        hist.append_reading(data, loc.plz, today, cheapest.price, cheapest.label)
+        preferred_results = []
+        preferred_prices = {}
+        for spec in loc.preferred:
+            match = find_preferred(stations, spec)
+            if match is None:
+                preferred_results.append(PreferredResult(spec.label, None, None))
+                continue
+            delta = match.price - cheapest.price
+            preferred_results.append(
+                PreferredResult(
+                    label=spec.label,
+                    price=match.price,
+                    delta_to_cheapest=delta,
+                    is_cheapest=(match.id == cheapest.id),
+                )
+            )
+            preferred_prices[spec.label] = round(match.price, 3)
+
+        results.append(
+            LocationResult(loc.name, loc.emoji, score, cheapest.label, preferred_results)
+        )
+
+        hist.append_reading(
+            data, loc.plz, today, cheapest.price, cheapest.label, preferred=preferred_prices
+        )
 
     if not results:
         print("[Spritradar] Keine Ergebnisse – nichts zu senden.", file=sys.stderr)

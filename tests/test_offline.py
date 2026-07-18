@@ -4,7 +4,9 @@ import datetime as dt
 from zoneinfo import ZoneInfo
 
 from spritradar.scoring import score_today
-from spritradar.message import build_message
+from spritradar.message import build_message, LocationResult, PreferredResult
+from spritradar.tankerkoenig import Station, find_preferred
+from spritradar.config import PreferredSpec
 
 
 def test_score_cheapest_day_is_ten():
@@ -39,21 +41,51 @@ def test_no_history():
     assert sc.avg is None
 
 
+def _stations():
+    return [
+        Station("1", "Die Zapfsäule", "", 2.129, 0.5, True, "Krefeld", "Hauptstr.", "1", "47798"),
+        Station("2", "JET Tankstelle", "JET", 2.159, 1.2, True, "Krefeld", "Oranierring", "51", "47798"),
+        Station("3", "Aral", "ARAL", 2.199, 0.8, True, "Krefeld", "Ostwall", "10", "47798"),
+    ]
+
+
+def test_find_preferred_by_brand_and_street():
+    spec = PreferredSpec(label="JET Oranierring", brand="JET", street="Oranierring", house_number="51")
+    match = find_preferred(_stations(), spec)
+    assert match is not None
+    assert match.id == "2"
+    assert match.price == 2.159
+
+
+def test_find_preferred_missing_returns_none():
+    spec = PreferredSpec(label="PM", brand="PM", place="Neukirchen-Vluyn")
+    assert find_preferred(_stations(), spec) is None
+
+
 def test_message_builds():
     now = dt.datetime(2026, 7, 10, 7, 30, tzinfo=ZoneInfo("Europe/Berlin"))
-    good = score_today(1.699, [1.75, 1.74, 1.76, 1.73, 1.72], min_history=4)
-    thin = score_today(1.80, [1.79], min_history=4)
+    good = score_today(2.129, [2.20, 2.18, 2.21, 2.19, 2.17], min_history=4)
+    thin = score_today(2.179, [2.18], min_history=4)
     msg = build_message(
         now,
         [
-            ("Zuhause – Krefeld", "🏠", good, "Aral (Krefeld)"),
-            ("Arbeit – Neukirchen-Vluyn", "🏢", thin, "JET (Neukirchen-Vluyn)"),
+            LocationResult(
+                "Zuhause – Krefeld", "🏠", good, "Die Zapfsäule (Krefeld)",
+                [PreferredResult("JET Oranierring", 2.159, 2.159 - 2.129)],
+            ),
+            LocationResult(
+                "Arbeit – Neukirchen-Vluyn", "🏢", thin, "PM (Neukirchen-Vluyn)",
+                [PreferredResult("PM Neukirchen-Vluyn", 2.179, 0.0, is_cheapest=True)],
+            ),
         ],
     )
     assert "Spritradar" in msg
     assert "10.07.2026" in msg
-    assert "1,699 €" in msg
+    assert "2,129 €" in msg
     assert "/10" in msg
+    assert "JET Oranierring" in msg
+    assert "+3,0 ct teurer" in msg
+    assert "= günstigste hier" in msg
     print("\n" + msg)
 
 

@@ -41,9 +41,19 @@ def recent_prices(data: dict, plz: str, window_days: int, exclude_date: str) -> 
     return prices[-window_days:]
 
 
-def append_reading(data: dict, plz: str, date: str, min_price: float, station: str) -> None:
+def append_reading(
+    data: dict,
+    plz: str,
+    date: str,
+    min_price: float,
+    station: str,
+    preferred: dict | None = None,
+) -> None:
     """Heutigen Messwert ablegen (idempotent: überschreibt gleichen Tag)."""
     entries = data.setdefault("locations", {}).setdefault(plz, [])
     entries[:] = [e for e in entries if e.get("date") != date]
-    entries.append({"date": date, "min_price": round(float(min_price), 3), "station": station})
+    entry = {"date": date, "min_price": round(float(min_price), 3), "station": station}
+    if preferred:
+        entry["preferred"] = preferred
+    entries.append(entry)
     entries.sort(key=lambda e: e["date"])

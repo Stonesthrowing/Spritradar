@@ -11,7 +11,15 @@
       "emoji": "🏠",
       "lat": 51.3350,
       "lng": 6.5850,
-      "radius_km": 4.0
+      "radius_km": 4.0,
+      "preferred": [
+        {
+          "label": "JET Oranierring",
+          "brand": "JET",
+          "street": "Oranierring",
+          "house_number": "51"
+        }
+      ]
     },
     {
       "name": "Arbeit – Neukirchen-Vluyn",
@@ -19,7 +27,14 @@
       "emoji": "🏢",
       "lat": 51.4450,
       "lng": 6.5400,
-      "radius_km": 4.0
+      "radius_km": 4.0,
+      "preferred": [
+        {
+          "label": "PM Neukirchen-Vluyn",
+          "brand": "PM",
+          "place": "Neukirchen-Vluyn"
+        }
+      ]
     }
   ]
 }

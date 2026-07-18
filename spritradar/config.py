@@ -18,6 +18,17 @@ DEFAULT_HISTORY_PATH = REPO_ROOT / "data" / "history.json"
 
 
 @dataclass
+class PreferredSpec:
+    """Feste Wunsch-Tankstelle, erkannt über Marke/Straße/Ort statt über ID."""
+
+    label: str
+    brand: str = ""
+    street: str = ""
+    house_number: str = ""
+    place: str = ""
+
+
+@dataclass
 class Location:
     name: str
     plz: str
@@ -25,6 +36,7 @@ class Location:
     lng: float
     radius_km: float
     emoji: str = "⛽"
+    preferred: list[PreferredSpec] = field(default_factory=list)
 
 
 @dataclass
@@ -39,17 +51,29 @@ class Config:
 
 def load_config(path: Path | str = DEFAULT_CONFIG_PATH) -> Config:
     data = json.loads(Path(path).read_text(encoding="utf-8"))
-    locations = [
-        Location(
-            name=loc["name"],
-            plz=str(loc["plz"]),
-            lat=float(loc["lat"]),
-            lng=float(loc["lng"]),
-            radius_km=float(loc.get("radius_km", 4.0)),
-            emoji=loc.get("emoji", "⛽"),
+    locations = []
+    for loc in data.get("locations", []):
+        preferred = [
+            PreferredSpec(
+                label=p.get("label") or p.get("brand", "Bevorzugt"),
+                brand=p.get("brand", ""),
+                street=p.get("street", ""),
+                house_number=str(p.get("house_number", "")),
+                place=p.get("place", ""),
+            )
+            for p in loc.get("preferred", [])
+        ]
+        locations.append(
+            Location(
+                name=loc["name"],
+                plz=str(loc["plz"]),
+                lat=float(loc["lat"]),
+                lng=float(loc["lng"]),
+                radius_km=float(loc.get("radius_km", 4.0)),
+                emoji=loc.get("emoji", "⛽"),
+                preferred=preferred,
+            )
         )
-        for loc in data.get("locations", [])
-    ]
     window = data.get("send_window_local_hours", [7, 10])
     return Config(
         fuel_type=data.get("fuel_type", "e10"),

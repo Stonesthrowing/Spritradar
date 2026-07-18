@@ -22,6 +22,9 @@ class Station:
     dist_km: float
     is_open: bool
     place: str
+    street: str = ""
+    house_number: str = ""
+    post_code: str = ""
 
     @property
     def label(self) -> str:
@@ -69,7 +72,39 @@ def fetch_stations(
                 dist_km=float(s.get("dist", 0.0)),
                 is_open=bool(s.get("isOpen", False)),
                 place=s.get("place", "") or "",
+                street=s.get("street", "") or "",
+                house_number=str(s.get("houseNumber", "") or ""),
+                post_code=str(s.get("postCode", "") or ""),
             )
         )
     stations.sort(key=lambda st: st.price)
     return stations
+
+
+def _norm(value: str) -> str:
+    return (value or "").casefold().strip()
+
+
+def find_preferred(stations: list[Station], spec) -> Station | None:
+    """Bevorzugte Tankstelle in der Trefferliste finden.
+
+    Harte Filter: Marke (in brand ODER name), Straße, Ort.
+    Hausnummer wird bevorzugt, aber nicht erzwungen (Formatierung variiert).
+    Bei mehreren Treffern gewinnt der günstigste.
+    """
+    cands: list[Station] = []
+    for st in stations:
+        if spec.brand and _norm(spec.brand) not in _norm(st.brand) and _norm(spec.brand) not in _norm(st.name):
+            continue
+        if spec.street and _norm(spec.street) not in _norm(st.street):
+            continue
+        if spec.place and _norm(spec.place) not in _norm(st.place):
+            continue
+        cands.append(st)
+    if not cands:
+        return None
+    if spec.house_number:
+        exact = [s for s in cands if _norm(s.house_number) == _norm(spec.house_number)]
+        if exact:
+            cands = exact
+    return min(cands, key=lambda s: s.price)
