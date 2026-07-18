@@ -19,6 +19,29 @@ def send_message(token: str, chat_id: str | int, text: str) -> dict:
     return _call(token, "sendMessage", {"chat_id": chat_id, "text": text})
 
 
+def send_photo(token: str, chat_id: str | int, photo_path: str, caption: str = "",
+               timeout: int = 60) -> dict:
+    url = API.format(token=token, method="sendPhoto")
+    with open(photo_path, "rb") as fh:
+        resp = requests.post(
+            url,
+            data={"chat_id": chat_id, "caption": caption},
+            files={"photo": fh},
+            timeout=timeout,
+        )
+    data = resp.json()
+    if not data.get("ok", False):
+        raise RuntimeError(f"Telegram-Fehler bei sendPhoto: {data.get('description')}")
+    return data["result"]
+
+
+def get_updates(token: str, offset: int | None = None, timeout: int = 20) -> list[dict]:
+    params: dict = {"timeout": 0}
+    if offset is not None:
+        params["offset"] = offset
+    return _call(token, "getUpdates", params, timeout=timeout)
+
+
 def discover_chat_ids(token: str) -> list[int]:
     """Chat-IDs aus getUpdates (jeder, der dem Bot geschrieben hat)."""
     try:

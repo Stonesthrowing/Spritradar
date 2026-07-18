@@ -9,6 +9,7 @@ from spritradar.tankerkoenig import Station, find_preferred
 from spritradar.config import PreferredSpec, DailyTips
 from spritradar.analysis import analyze_with_heuristic
 from spritradar.news import Headline
+from spritradar import intraday as itd
 
 
 def test_score_cheapest_day_is_ten():
@@ -83,6 +84,35 @@ def test_heuristic_bearish_says_kann_warten():
     ins = analyze_with_heuristic(hl)
     assert ins.tendency == "fallend"
     assert ins.advice == "kann_warten"
+
+
+def test_model_curve_anchored_at_ref_hour():
+    # Am Referenzpunkt muss der Modellpreis exakt dem Anker entsprechen.
+    curve = itd.model_curve(2.129, itd.REF_HOUR, itd.REF_HOUR, itd.REF_HOUR, step=0.5)
+    assert abs(curve[0][1] - 2.129) < 1e-9
+    # Abends (21 Uhr) muss günstiger als morgens sein (Profil fällt ab).
+    full = dict(itd.model_curve(2.129, itd.REF_HOUR, 0, 24, step=1.0))
+    assert full[21] < full[itd.REF_HOUR]
+
+
+def test_build_day_today_splits_real_and_model():
+    real = [(6.0, 2.13), (9.0, 2.11)]
+    s = itd.build_day("today", real, anchor_price=2.13, now_hour=9.0)
+    assert s.real == real
+    assert s.model and s.model[0][0] >= 9.0  # Modell beginnt beim letzten Messpunkt
+
+
+def test_build_day_future_is_all_model():
+    s = itd.build_day("future", real=[], anchor_price=2.13, now_hour=9.0)
+    assert s.real == []
+    assert len(s.model) > 10
+
+
+def test_day_points_parses_and_sorts():
+    store = {"locations": {"47798": {"2026-07-10": [
+        {"t": "09:00", "price": 2.11}, {"t": "06:30", "price": 2.13}]}}}
+    pts = itd.day_points(store, "47798", "2026-07-10")
+    assert pts[0] == (6.5, 2.13) and pts[1] == (9.0, 2.11)
 
 
 def test_message_builds():
