@@ -4,6 +4,16 @@
   "history_window_days": 14,
   "min_history_for_score": 4,
   "send_window_local_hours": [7, 10],
+  "daily_tips": {
+    "best_time": "18–19 Uhr",
+    "best_weekday": "Dienstag"
+  },
+  "news": {
+    "enabled": true,
+    "model": "claude-haiku-4-5",
+    "max_headlines": 8,
+    "query": "Benzinpreis OR Spritpreis OR Dieselpreis OR Rohölpreis OR Ölpreis OR OPEC"
+  },
   "locations": [
     {
       "name": "Zuhause – Krefeld",

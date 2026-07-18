@@ -6,7 +6,9 @@ from zoneinfo import ZoneInfo
 from spritradar.scoring import score_today
 from spritradar.message import build_message, LocationResult, PreferredResult
 from spritradar.tankerkoenig import Station, find_preferred
-from spritradar.config import PreferredSpec
+from spritradar.config import PreferredSpec, DailyTips
+from spritradar.analysis import analyze_with_heuristic
+from spritradar.news import Headline
 
 
 def test_score_cheapest_day_is_ten():
@@ -62,10 +64,34 @@ def test_find_preferred_missing_returns_none():
     assert find_preferred(_stations(), spec) is None
 
 
+def test_heuristic_bullish_says_vorher_tanken():
+    hl = [
+        Headline("OPEC+ kürzt Fördermenge, Ölpreis steigt deutlich", "X", ""),
+        Headline("Neue Sanktionen gegen Öllieferungen", "Y", ""),
+    ]
+    ins = analyze_with_heuristic(hl)
+    assert ins.tendency == "steigend"
+    assert ins.advice == "vorher_tanken"
+    assert ins.source == "heuristik"
+
+
+def test_heuristic_bearish_says_kann_warten():
+    hl = [
+        Headline("Ölpreis fällt: Nachfrage schwächelt weiter", "X", ""),
+        Headline("Rohöl wird billiger nach Einigung", "Y", ""),
+    ]
+    ins = analyze_with_heuristic(hl)
+    assert ins.tendency == "fallend"
+    assert ins.advice == "kann_warten"
+
+
 def test_message_builds():
     now = dt.datetime(2026, 7, 10, 7, 30, tzinfo=ZoneInfo("Europe/Berlin"))
     good = score_today(2.129, [2.20, 2.18, 2.21, 2.19, 2.17], min_history=4)
     thin = score_today(2.179, [2.18], min_history=4)
+    news = analyze_with_heuristic(
+        [Headline("OPEC+ kürzt Förderung, Ölpreis steigt", "X", "")]
+    )
     msg = build_message(
         now,
         [
@@ -78,6 +104,8 @@ def test_message_builds():
                 [PreferredResult("PM Neukirchen-Vluyn", 2.179, 0.0, is_cheapest=True)],
             ),
         ],
+        news=news,
+        daily_tips=DailyTips(best_time="18–19 Uhr", best_weekday="Dienstag"),
     )
     assert "Spritradar" in msg
     assert "10.07.2026" in msg
@@ -86,6 +114,8 @@ def test_message_builds():
     assert "JET Oranierring" in msg
     assert "+3,0 ct teurer" in msg
     assert "= günstigste hier" in msg
+    assert "📰" in msg
+    assert msg.rstrip().endswith("Bester Wochentag: Dienstag)")
     print("\n" + msg)
 
 

@@ -11,6 +11,8 @@ from dataclasses import dataclass, field
 
 import holidays
 
+from .analysis import NewsInsight
+from .config import DailyTips
 from .scoring import Score
 
 WEEKDAYS_DE = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]
@@ -52,6 +54,8 @@ def _bar(value: int | None) -> str:
 def build_message(
     now_local: dt.datetime,
     results: list[LocationResult],
+    news: NewsInsight | None = None,
+    daily_tips: DailyTips | None = None,
 ) -> str:
     date_str = f"{WEEKDAYS_DE[now_local.weekday()]}, {now_local:%d.%m.%Y}"
     lines = [f"⛽ Spritradar – Super E10", date_str, ""]
@@ -86,12 +90,31 @@ def build_message(
             lines.append(_preferred_line(pref))
         lines.append("")
 
+    if news is not None:
+        lines.append(_news_block(news))
+        lines.append("")
+
     lines.append(_outlook_note(now_local))
-    lines.append(
-        "💡 Tipp: In DE ist Sprit abends (ca. 18–21 Uhr) meist am günstigsten – "
-        "morgens ist Tageshoch. Der Score bewertet das *Tagesniveau*."
-    )
+
+    if daily_tips is not None:
+        lines.append("")
+        lines.append(
+            f"(Beste Uhrzeit: {daily_tips.best_time} · "
+            f"Bester Wochentag: {daily_tips.best_weekday})"
+        )
     return "\n".join(lines).strip()
+
+
+def _news_block(news: NewsInsight) -> str:
+    advice = {
+        "vorher_tanken": "⛽ Eher heute vollmachen – Preise dürften anziehen.",
+        "kann_warten": "⏳ Tanken kann warten – Preise dürften nachgeben.",
+        "neutral": "➡️ Kein klares Preissignal.",
+    }[news.advice]
+    lines = [f"📰 {news.headline}", f"   {advice}"]
+    if news.reason:
+        lines.append(f"   ({news.reason})")
+    return "\n".join(lines)
 
 
 def _preferred_line(pref: PreferredResult) -> str:

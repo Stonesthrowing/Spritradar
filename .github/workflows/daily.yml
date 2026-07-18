@@ -40,6 +40,7 @@ jobs:
           TANKERKOENIG_API_KEY: ${{ secrets.TANKERKOENIG_API_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           FORCE: ${{ (github.event_name == 'workflow_dispatch' && inputs.force) && '1' || '' }}
         run: python -m spritradar.main
 

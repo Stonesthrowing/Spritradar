@@ -40,6 +40,22 @@ class Location:
 
 
 @dataclass
+class DailyTips:
+    """Fixwerte, die jeden Tag gelten (Anzeige ganz am Ende, sehr knapp)."""
+
+    best_time: str = "18–19 Uhr"
+    best_weekday: str = "Dienstag"
+
+
+@dataclass
+class NewsConfig:
+    enabled: bool = True
+    model: str = "claude-haiku-4-5"
+    max_headlines: int = 8
+    query: str = "Benzinpreis OR Spritpreis OR Rohölpreis OR Ölpreis OR OPEC"
+
+
+@dataclass
 class Config:
     fuel_type: str = "e10"
     timezone: str = "Europe/Berlin"
@@ -47,6 +63,8 @@ class Config:
     min_history_for_score: int = 4
     send_window_local_hours: tuple[int, int] = (7, 10)
     locations: list[Location] = field(default_factory=list)
+    daily_tips: DailyTips = field(default_factory=DailyTips)
+    news: NewsConfig = field(default_factory=NewsConfig)
 
 
 def load_config(path: Path | str = DEFAULT_CONFIG_PATH) -> Config:
@@ -75,6 +93,8 @@ def load_config(path: Path | str = DEFAULT_CONFIG_PATH) -> Config:
             )
         )
     window = data.get("send_window_local_hours", [7, 10])
+    tips = data.get("daily_tips", {})
+    news = data.get("news", {})
     return Config(
         fuel_type=data.get("fuel_type", "e10"),
         timezone=data.get("timezone", "Europe/Berlin"),
@@ -82,6 +102,16 @@ def load_config(path: Path | str = DEFAULT_CONFIG_PATH) -> Config:
         min_history_for_score=int(data.get("min_history_for_score", 4)),
         send_window_local_hours=(int(window[0]), int(window[1])),
         locations=locations,
+        daily_tips=DailyTips(
+            best_time=tips.get("best_time", "18–19 Uhr"),
+            best_weekday=tips.get("best_weekday", "Dienstag"),
+        ),
+        news=NewsConfig(
+            enabled=bool(news.get("enabled", True)),
+            model=news.get("model", "claude-haiku-4-5"),
+            max_headlines=int(news.get("max_headlines", 8)),
+            query=news.get("query", "Benzinpreis OR Spritpreis OR Rohölpreis OR Ölpreis OR OPEC"),
+        ),
     )
 
 
@@ -90,14 +120,16 @@ class Secrets:
     tankerkoenig_api_key: str
     telegram_bot_token: str
     telegram_chat_id: str | None
+    anthropic_api_key: str | None  # optional: aktiviert die LLM-Nachrichtenanalyse
 
 
 def load_secrets() -> Secrets:
     api_key = os.environ.get("TANKERKOENIG_API_KEY", "").strip()
     bot_token = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
     chat_id = os.environ.get("TELEGRAM_CHAT_ID", "").strip() or None
+    anthropic_key = os.environ.get("ANTHROPIC_API_KEY", "").strip() or None
     if not api_key:
         raise RuntimeError("TANKERKOENIG_API_KEY ist nicht gesetzt (GitHub-Secret fehlt).")
     if not bot_token:
         raise RuntimeError("TELEGRAM_BOT_TOKEN ist nicht gesetzt (GitHub-Secret fehlt).")
-    return Secrets(api_key, bot_token, chat_id)
+    return Secrets(api_key, bot_token, chat_id, anthropic_key)

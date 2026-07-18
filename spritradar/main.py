@@ -12,7 +12,9 @@ import os
 import sys
 from zoneinfo import ZoneInfo
 
+from . import analysis
 from . import history as hist
+from . import news as news_mod
 from . import telegram
 from .config import load_config, load_secrets
 from .message import LocationResult, PreferredResult, build_message
@@ -92,7 +94,18 @@ def run() -> int:
         print("[Spritradar] Keine Ergebnisse – nichts zu senden.", file=sys.stderr)
         return 1
 
-    text = build_message(now_local, results)
+    # Nachrichtenlage (optional, darf den Versand nie blockieren).
+    insight = None
+    if cfg.news.enabled:
+        try:
+            headlines = news_mod.fetch_headlines(cfg.news.query, cfg.news.max_headlines)
+            insight = analysis.analyze(headlines, cfg.news.model, secrets.anthropic_api_key)
+            if insight:
+                print(f"[Spritradar] News-Analyse ({insight.source}): {insight.tendency}")
+        except Exception as exc:
+            print(f"[Spritradar] News übersprungen: {exc}", file=sys.stderr)
+
+    text = build_message(now_local, results, news=insight, daily_tips=cfg.daily_tips)
     print("----- Nachricht -----")
     print(text)
     print("---------------------")
