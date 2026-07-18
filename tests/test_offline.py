@@ -115,6 +115,27 @@ def test_day_points_parses_and_sorts():
     assert pts[0] == (6.5, 2.13) and pts[1] == (9.0, 2.11)
 
 
+def _full_day(base):
+    return [{"t": f"{h:02d}:00", "price": round(base + (itd.SHAPE[h] - itd.SHAPE[6]) / 100, 3)}
+            for h in range(0, 24)]
+
+
+def test_learn_shape_insufficient_returns_static():
+    store = {"locations": {"47798": {"2026-07-01": _full_day(2.10)}}}
+    shape, learned = itd.learn_shape(store, exclude_date="2026-07-10", min_days=5)
+    assert learned is False
+    assert shape is itd.SHAPE
+
+
+def test_learn_shape_learns_from_enough_days():
+    store = {"locations": {"47798": {f"2026-07-0{d}": _full_day(2.10 + d / 100)
+                                     for d in range(1, 7)}}}
+    shape, learned = itd.learn_shape(store, exclude_date="2026-07-10", min_days=5)
+    assert learned is True
+    # Gelerntes Profil: abends (21 Uhr) günstiger als morgens (6 Uhr).
+    assert shape[21] < shape[6]
+
+
 def test_message_builds():
     now = dt.datetime(2026, 7, 10, 7, 30, tzinfo=ZoneInfo("Europe/Berlin"))
     good = score_today(2.129, [2.20, 2.18, 2.21, 2.19, 2.17], min_history=4)

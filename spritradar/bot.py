@@ -21,10 +21,9 @@ from .config import REPO_ROOT, load_config, load_secrets
 
 STATE_PATH = REPO_ROOT / "data" / "bot_state.json"
 TRIGGER = "graph"  # matcht "Graphs", "/graphs", "graph" …
-CAPTION = (
+CAPTION_BASE = (
     "⛽ Tagesverlauf Super E10 – gestern / heute / morgen.\n"
-    "Durchgezogen = gemessen, gestrichelt = Prognose (typisches Tagesprofil "
-    "am aktuellen Preisniveau)."
+    "Durchgezogen = gemessen, gestrichelt = Prognose."
 )
 
 
@@ -42,12 +41,14 @@ def _save_offset(offset: int) -> None:
     STATE_PATH.write_text(json.dumps({"offset": offset}) + "\n", encoding="utf-8")
 
 
-def _make_charts(cfg, now_local) -> str:
+def _make_charts(cfg, now_local) -> tuple[str, str]:
     store = itd.load_intraday()
     history = hist.load_history()
-    days, now_hour = charts.build_days(cfg, store, history, now_local)
+    days, now_hour, learned = charts.build_days(cfg, store, history, now_local)
     out = Path(tempfile.gettempdir()) / "spritradar_charts.png"
-    return charts.render(days, now_hour, out)
+    profil = "gelerntes Tagesprofil" if learned else "typisches Tagesprofil (noch wenig Daten)"
+    caption = f"{CAPTION_BASE}\nPrognose-Basis: {profil}."
+    return charts.render(days, now_hour, out), caption
 
 
 def run() -> int:
@@ -71,8 +72,8 @@ def run() -> int:
         if not chat_id or TRIGGER not in text:
             continue
         try:
-            png = _make_charts(cfg, dt.datetime.now(tz))
-            telegram.send_photo(secrets.telegram_bot_token, chat_id, png, CAPTION)
+            png, caption = _make_charts(cfg, dt.datetime.now(tz))
+            telegram.send_photo(secrets.telegram_bot_token, chat_id, png, caption)
             handled += 1
             print(f"[bot] Charts an Chat {chat_id} gesendet.")
         except Exception as exc:

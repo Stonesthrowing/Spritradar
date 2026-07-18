@@ -22,8 +22,8 @@ from .scoring import score_today
 from .tankerkoenig import fetch_stations, find_preferred
 
 
-def _within_send_window(now_local: dt.datetime, window: tuple[int, int]) -> bool:
-    return window[0] <= now_local.hour < window[1]
+def _within_send_window(now_local: dt.datetime, after: dt.time, until: dt.time) -> bool:
+    return after <= now_local.time() <= until
 
 
 def run() -> int:
@@ -40,7 +40,7 @@ def run() -> int:
     # Sende-Gate: außerhalb des Zeitfensters oder heute schon gesendet -> nur
     # bei FORCE (manueller Start) trotzdem weiter.
     if not forced:
-        if not _within_send_window(now_local, cfg.send_window_local_hours):
+        if not _within_send_window(now_local, cfg.send_after, cfg.send_until):
             print(f"[Spritradar] {now_local:%H:%M} {cfg.timezone} außerhalb Sendefenster – überspringe.")
             return 0
         if data.get("last_sent_date") == today:

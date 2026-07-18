@@ -72,20 +72,64 @@ def day_points(data: dict, plz: str, date: str) -> list[tuple[float, float]]:
 
 
 # ------------------------------------------------------------------ Modell ---
-def _offset(hour: float) -> float:
+def _offset(hour: float, shape: dict = SHAPE) -> float:
     h0 = int(hour) % 24
     frac = hour - int(hour)
-    return SHAPE[h0] + (SHAPE[h0 + 1] - SHAPE[h0]) * frac
+    return shape[h0] + (shape[h0 + 1] - shape[h0]) * frac
+
+
+def learn_shape(store: dict, exclude_date: str | None = None,
+                min_days: int = 5, min_hours: int = 8) -> tuple[dict, bool]:
+    """Tagesprofil aus gesammelten Daten lernen (relativer ct-Aufschlag je Stunde).
+
+    Nur Tage mit ausreichend Stundenabdeckung zählen; der heutige (unvollständige)
+    Tag wird ausgeschlossen. Reicht die Datenbasis nicht, kommt das statische
+    Standardprofil zurück. Rückgabe: (shape, gelernt?).
+    """
+    sums: dict[int, float] = {}
+    counts: dict[int, int] = {}
+    good_days = 0
+
+    for days in store.get("locations", {}).values():
+        for date, entries in days.items():
+            if date == exclude_date:
+                continue
+            by_hour: dict[int, float] = {}
+            for e in entries:
+                try:
+                    hh = int(e["t"].split(":")[0])
+                    by_hour[hh] = float(e["price"])  # letzter Wert der Stunde gewinnt
+                except (ValueError, KeyError):
+                    continue
+            if len(by_hour) < min_hours:
+                continue
+            mean = sum(by_hour.values()) / len(by_hour)
+            for hh, price in by_hour.items():
+                sums[hh] = sums.get(hh, 0.0) + (price - mean) * 100.0
+                counts[hh] = counts.get(hh, 0) + 1
+            good_days += 1
+
+    if good_days < min_days:
+        return SHAPE, False
+
+    shape = {}
+    for h in range(25):
+        hh = h % 24
+        if counts.get(hh):
+            shape[h] = sums[hh] / counts[hh]
+        else:
+            shape[h] = SHAPE[h]  # fehlende Stunde -> Standardprofil
+    return shape, True
 
 
 def model_curve(anchor_price: float, anchor_hour: float, h_start: float, h_end: float,
-                step: float = 0.5) -> list[tuple[float, float]]:
+                step: float = 0.5, shape: dict = SHAPE) -> list[tuple[float, float]]:
     """Modellierte Kurve zwischen h_start und h_end, verankert am Referenzpunkt."""
     pts = []
     h = h_start
-    base = _offset(anchor_hour)
+    base = _offset(anchor_hour, shape)
     while h <= h_end + 1e-9:
-        pts.append((h, anchor_price + (_offset(h) - base) / 100.0))
+        pts.append((h, anchor_price + (_offset(h, shape) - base) / 100.0))
         h += step
     return pts
 
@@ -97,7 +141,7 @@ class DaySeries:
 
 
 def build_day(mode: str, real: list[tuple[float, float]], anchor_price: float | None,
-              now_hour: float) -> DaySeries:
+              now_hour: float, shape: dict = SHAPE) -> DaySeries:
     """Real + Modell für einen Tag zusammensetzen.
 
     mode: "past" (gestern), "today", "future" (morgen).
@@ -106,21 +150,21 @@ def build_day(mode: str, real: list[tuple[float, float]], anchor_price: float | 
         if real:
             return DaySeries(real=real, model=[])
         if anchor_price is not None:
-            return DaySeries(real=[], model=model_curve(anchor_price, REF_HOUR, 0, 24))
+            return DaySeries(real=[], model=model_curve(anchor_price, REF_HOUR, 0, 24, shape=shape))
         return DaySeries(real=[], model=[])
 
     if mode == "today":
         if real:
             last_h, last_p = real[-1]
-            model = model_curve(last_p, last_h, last_h, 24)
+            model = model_curve(last_p, last_h, last_h, 24, shape=shape)
             return DaySeries(real=real, model=model)
         if anchor_price is not None:
             # noch keine Messung heute -> ganzer Tag modelliert
-            model = model_curve(anchor_price, REF_HOUR, 0, 24)
+            model = model_curve(anchor_price, REF_HOUR, 0, 24, shape=shape)
             return DaySeries(real=[], model=model)
         return DaySeries(real=[], model=[])
 
     # future
     if anchor_price is not None:
-        return DaySeries(real=[], model=model_curve(anchor_price, REF_HOUR, 0, 24))
+        return DaySeries(real=[], model=model_curve(anchor_price, REF_HOUR, 0, 24, shape=shape))
     return DaySeries(real=[], model=[])

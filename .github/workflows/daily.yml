@@ -1,50 +1,97 @@
 name: Spritradar Daily
 
-# Hinweis: Geplante Workflows (schedule) laufen nur auf dem Default-Branch.
-# Damit die 7:30-Nachricht automatisch kommt, muss dieser Workflow auf dem
-# Default-Branch (main) liegen. Zum Testen: unten "Run workflow" (workflow_dispatch).
+# Geplante Workflows (schedule) laufen nur auf dem Default-Branch. Damit die
+# Morgennachricht automatisch kommt, muss dieser Workflow auf dem Default-Branch
+# (main) liegen. Zum Testen: unten "Run workflow" (workflow_dispatch).
+#
+# Warum so viele Crons? GitHub-Cron ist "best effort" und wird gerade zur vollen
+# Stunde oft 10–30+ Min verzögert – ein einzelner 7:30-Trigger kam darum häufig
+# erst gegen 9–10 Uhr. Deshalb viele Versuche über den Morgen (UTC 05:25–07:05,
+# alle 5 Min; deckt Sommer- UTC+2 und Winterzeit UTC+1 ab). Genau EIN Lauf sendet:
+# der erste, der ab lokal 07:25 einen atomaren Git-Claim (data/sent/<datum>.flag)
+# gewinnt. Alle anderen sehen den Flag und überspringen – daher KEINE concurrency-
+# Sperre (die würde die meisten Versuche wegcanceln).
 
 on:
   schedule:
-    - cron: "30 5 * * *"   # 07:30 Europe/Berlin in der Sommerzeit (CEST = UTC+2)
-    - cron: "30 6 * * *"   # 07:30 Europe/Berlin in der Winterzeit  (CET  = UTC+1)
+    - cron: "25-55/5 5 * * *"
+    - cron: "0-55/5 6 * * *"
+    - cron: "0-5/5 7 * * *"
   workflow_dispatch:
-    inputs:
-      force:
-        description: "Sofort senden (Zeitfenster & Tages-Dedup ignorieren)"
-        type: boolean
-        default: true
 
 permissions:
   contents: write
 
-concurrency:
-  group: spritradar-daily
-  cancel-in-progress: false
-
 jobs:
   run:
     runs-on: ubuntu-latest
+    env:
+      BRANCH: ${{ github.ref_name }}
     steps:
       - uses: actions/checkout@v4
 
+      - name: Tages-Sperre (atomarer Claim)
+        id: claim
+        run: |
+          set -e
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "Manueller Start -> senden."
+            echo "send=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+
+          now=$(TZ=Europe/Berlin date +%H:%M)
+          today=$(TZ=Europe/Berlin date +%F)
+          if [[ "$now" < "07:25" || "$now" > "10:30" ]]; then
+            echo "$now außerhalb Sendefenster – überspringe."
+            echo "send=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+
+          flag="data/sent/${today}.flag"
+          for attempt in 1 2 3 4 5; do
+            git fetch -q origin "$BRANCH"
+            git reset -q --hard "origin/$BRANCH"
+            if [ -f "$flag" ]; then
+              echo "Heute bereits von anderem Lauf geclaimt – überspringe."
+              echo "send=false" >> "$GITHUB_OUTPUT"; exit 0
+            fi
+            mkdir -p data/sent
+            find data/sent -name '*.flag' -mtime +5 -delete 2>/dev/null || true
+            echo "$now" > "$flag"
+            git add data/sent
+            git commit -q -m "chore: send-claim $today ($now)"
+            if git push -q origin "HEAD:$BRANCH"; then
+              echo "Claim gewonnen -> senden."
+              echo "send=true" >> "$GITHUB_OUTPUT"; exit 0
+            fi
+            echo "Push abgelehnt (Versuch $attempt), erneut prüfen…"; sleep 2
+          done
+          echo "Claim nach Retries fehlgeschlagen – überspringe (anderer Lauf sendet)."
+          echo "send=false" >> "$GITHUB_OUTPUT"
+
       - uses: actions/setup-python@v5
+        if: steps.claim.outputs.send == 'true'
         with:
           python-version: "3.12"
 
       - name: Abhängigkeiten installieren
+        if: steps.claim.outputs.send == 'true'
         run: pip install -r requirements.txt
 
-      - name: Spritradar ausführen
+      - name: Spritradar senden
+        if: steps.claim.outputs.send == 'true'
         env:
           TANKERKOENIG_API_KEY: ${{ secrets.TANKERKOENIG_API_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          FORCE: ${{ (github.event_name == 'workflow_dispatch' && inputs.force) && '1' || '' }}
+          FORCE: "1"   # Claim hat Fenster & Dedup bereits geprüft
         run: python -m spritradar.main
 
       - name: Aktualisierte Preishistorie committen
+        if: steps.claim.outputs.send == 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -53,5 +100,7 @@ jobs:
             echo "Keine Änderung an der Historie."
           else
             git commit -m "chore: Preishistorie aktualisieren ($(date -u +%F))"
-            git push
+            for i in 1 2 3; do
+              git pull --rebase --autostash origin "$BRANCH" && git push && break || sleep 3
+            done
           fi

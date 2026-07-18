@@ -7,6 +7,7 @@ niemals aus dem Code oder dem Repo.
 
 from __future__ import annotations
 
+import datetime as dt
 import json
 import os
 from dataclasses import dataclass, field
@@ -55,13 +56,24 @@ class NewsConfig:
     query: str = "Benzinpreis OR Spritpreis OR Rohölpreis OR Ölpreis OR OPEC"
 
 
+def _parse_hhmm(value: str, default: dt.time) -> dt.time:
+    try:
+        hh, mm = str(value).split(":")
+        return dt.time(int(hh), int(mm))
+    except (ValueError, AttributeError):
+        return default
+
+
 @dataclass
 class Config:
     fuel_type: str = "e10"
     timezone: str = "Europe/Berlin"
     history_window_days: int = 14
     min_history_for_score: int = 4
-    send_window_local_hours: tuple[int, int] = (7, 10)
+    # Sendefenster (lokale Zeit): erster Lauf ab `send_after` sendet, spätere
+    # werden per Tages-Sperre blockiert. `send_until` verhindert Spät-Sendungen.
+    send_after: dt.time = dt.time(7, 25)
+    send_until: dt.time = dt.time(10, 30)
     locations: list[Location] = field(default_factory=list)
     daily_tips: DailyTips = field(default_factory=DailyTips)
     news: NewsConfig = field(default_factory=NewsConfig)
@@ -92,7 +104,6 @@ def load_config(path: Path | str = DEFAULT_CONFIG_PATH) -> Config:
                 preferred=preferred,
             )
         )
-    window = data.get("send_window_local_hours", [7, 10])
     tips = data.get("daily_tips", {})
     news = data.get("news", {})
     return Config(
@@ -100,7 +111,8 @@ def load_config(path: Path | str = DEFAULT_CONFIG_PATH) -> Config:
         timezone=data.get("timezone", "Europe/Berlin"),
         history_window_days=int(data.get("history_window_days", 14)),
         min_history_for_score=int(data.get("min_history_for_score", 4)),
-        send_window_local_hours=(int(window[0]), int(window[1])),
+        send_after=_parse_hhmm(data.get("send_after", "07:25"), dt.time(7, 25)),
+        send_until=_parse_hhmm(data.get("send_until", "10:30"), dt.time(10, 30)),
         locations=locations,
         daily_tips=DailyTips(
             best_time=tips.get("best_time", "18–19 Uhr"),

@@ -3,7 +3,8 @@
   "timezone": "Europe/Berlin",
   "history_window_days": 14,
   "min_history_for_score": 4,
-  "send_window_local_hours": [7, 10],
+  "send_after": "07:25",
+  "send_until": "10:30",
   "daily_tips": {
     "best_time": "18–19 Uhr",
     "best_weekday": "Dienstag"

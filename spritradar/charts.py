@@ -38,6 +38,8 @@ def build_days(cfg: Config, store: dict, history: dict, now_local: dt.datetime):
     days = [("Gestern", "past", yesterday), ("Heute", "today", today_s),
             ("Morgen", "future", tomorrow)]
 
+    shape, learned = itd.learn_shape(store, exclude_date=today_s)
+
     result = []
     for label, mode, date in days:
         entries = []
@@ -48,10 +50,10 @@ def build_days(cfg: Config, store: dict, history: dict, now_local: dt.datetime):
             anchor = _history_price(history, loc.plz, date if mode != "future" else today_s)
             if anchor is None and mode == "future":
                 anchor = _history_price(history, loc.plz, today_s)
-            series = itd.build_day(mode, real, anchor, now_hour)
+            series = itd.build_day(mode, real, anchor, now_hour, shape=shape)
             entries.append((loc.name, color, series))
         result.append((label, mode, entries))
-    return result, now_hour
+    return result, now_hour, learned
 
 
 def render(days, now_hour: float, out_path: Path | str) -> str:
