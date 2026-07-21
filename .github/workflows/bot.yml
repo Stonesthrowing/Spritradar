@@ -1,0 +1,47 @@
+name: Spritradar Bot
+
+# Poller: antwortet auf "Graphs" im Telegram-Chat mit den drei Charts.
+# GitHub kann nicht dauerhaft lauschen -> Abfrage im Intervall (kleine Verzögerung).
+# Intervall bei Bedarf verkürzen (Achtung: verbraucht mehr Actions-Minuten).
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"   # alle 10 Minuten
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: spritradar-bot
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - name: Auf "Graphs" antworten
+        env:
+          TANKERKOENIG_API_KEY: ${{ secrets.TANKERKOENIG_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+        run: python -m spritradar.bot
+      - name: Bot-Status committen
+        env:
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/bot_state.json
+          if git diff --cached --quiet; then
+            echo "Keine Änderung."
+          else
+            git commit -m "chore: Bot-Offset aktualisieren"
+            for i in 1 2 3; do
+              git pull --rebase --autostash origin "$BRANCH" && git push && break || sleep 3
+            done
+          fi

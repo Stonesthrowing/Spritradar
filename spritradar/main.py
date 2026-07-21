@@ -12,16 +12,18 @@ import os
 import sys
 from zoneinfo import ZoneInfo
 
+from . import analysis
 from . import history as hist
+from . import news as news_mod
 from . import telegram
 from .config import load_config, load_secrets
-from .message import build_message
+from .message import LocationResult, PreferredResult, build_message
 from .scoring import score_today
-from .tankerkoenig import fetch_stations
+from .tankerkoenig import fetch_stations, find_preferred
 
 
-def _within_send_window(now_local: dt.datetime, window: tuple[int, int]) -> bool:
-    return window[0] <= now_local.hour < window[1]
+def _within_send_window(now_local: dt.datetime, after: dt.time, until: dt.time) -> bool:
+    return after <= now_local.time() <= until
 
 
 def run() -> int:
@@ -38,7 +40,7 @@ def run() -> int:
     # Sende-Gate: außerhalb des Zeitfensters oder heute schon gesendet -> nur
     # bei FORCE (manueller Start) trotzdem weiter.
     if not forced:
-        if not _within_send_window(now_local, cfg.send_window_local_hours):
+        if not _within_send_window(now_local, cfg.send_after, cfg.send_until):
             print(f"[Spritradar] {now_local:%H:%M} {cfg.timezone} außerhalb Sendefenster – überspringe.")
             return 0
         if data.get("last_sent_date") == today:
@@ -61,15 +63,49 @@ def run() -> int:
         cheapest = stations[0]
         recent = hist.recent_prices(data, loc.plz, cfg.history_window_days, exclude_date=today)
         score = score_today(cheapest.price, recent, cfg.min_history_for_score)
-        results.append((loc.name, loc.emoji, score, cheapest.label))
 
-        hist.append_reading(data, loc.plz, today, cheapest.price, cheapest.label)
+        preferred_results = []
+        preferred_prices = {}
+        for spec in loc.preferred:
+            match = find_preferred(stations, spec)
+            if match is None:
+                preferred_results.append(PreferredResult(spec.label, None, None))
+                continue
+            delta = match.price - cheapest.price
+            preferred_results.append(
+                PreferredResult(
+                    label=spec.label,
+                    price=match.price,
+                    delta_to_cheapest=delta,
+                    is_cheapest=(match.id == cheapest.id),
+                )
+            )
+            preferred_prices[spec.label] = round(match.price, 3)
+
+        results.append(
+            LocationResult(loc.name, loc.emoji, score, cheapest.label, preferred_results)
+        )
+
+        hist.append_reading(
+            data, loc.plz, today, cheapest.price, cheapest.label, preferred=preferred_prices
+        )
 
     if not results:
         print("[Spritradar] Keine Ergebnisse – nichts zu senden.", file=sys.stderr)
         return 1
 
-    text = build_message(now_local, results)
+    # Nachrichtenlage (optional, darf den Versand nie blockieren).
+    insight = None
+    if cfg.news.enabled:
+        try:
+            headlines = news_mod.fetch_headlines(cfg.news.query, cfg.news.max_headlines)
+            insight = analysis.analyze(headlines, cfg.news.model, secrets.anthropic_api_key)
+            if insight:
+                print(f"[Spritradar] News-Analyse ({insight.source}): {insight.tendency}")
+        except Exception as exc:
+            print(f"[Spritradar] News übersprungen: {exc}", file=sys.stderr)
+
+    text = build_message(now_local, results, news=insight, daily_tips=cfg.daily_tips)
     print("----- Nachricht -----")
     print(text)
     print("---------------------")

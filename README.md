@@ -19,7 +19,11 @@ GitHub Actions (cron 7:30)
         └─ Telegram-Bot      → Nachricht an dich
 ```
 
-- **Datenquelle:** [Tankerkönig](https://creativecommons.tankerkoenig.de) (offizielle MTS-K-Preise, kostenlos).
+- **Datenquelle Preise:** [Tankerkönig](https://creativecommons.tankerkoenig.de) (offizielle MTS-K-Preise, kostenlos).
+- **Nachrichtenlage:** aktuelle Schlagzeilen zu Benzin/Öl/OPEC über Google-News-RSS
+  (kostenlos, kein Key). Die Bewertung „heute vollmachen vs. warten" macht optional
+  Claude Haiku (geringe Kosten, `ANTHROPIC_API_KEY`); ohne Key greift eine kostenlose
+  Stichwort-Heuristik.
 - **Historie:** Die freie API liefert nur aktuelle Preise. Deshalb speichert der
   Workflow jeden Morgen den günstigsten Preis in `data/history.json` und committet
   sie zurück. Der Score wird mit jedem Tag aussagekräftiger (ab ~4 Tagen Historie).
@@ -36,6 +40,7 @@ GitHub Actions (cron 7:30)
 | `TANKERKOENIG_API_KEY` | dein Tankerkönig-API-Key |
 | `TELEGRAM_BOT_TOKEN` | Bot-Token vom BotFather |
 | `TELEGRAM_CHAT_ID` | *(zunächst leer lassen – siehe Schritt 2)* |
+| `ANTHROPIC_API_KEY` | *(optional – aktiviert die LLM-Nachrichtenanalyse; ohne läuft die kostenlose Heuristik)* |
 
 ### 2. Chat-ID ermitteln
 1. In Telegram den Bot öffnen (`t.me/Spritradar_bot`) und **`/start`** senden.
@@ -43,13 +48,43 @@ GitHub Actions (cron 7:30)
 3. Die angezeigte Chat-ID als Secret **`TELEGRAM_CHAT_ID`** eintragen.
 
 ### 3. Aktivieren
-Der `schedule`-Trigger läuft nur auf dem **Default-Branch**. Diesen Branch nach
-`main` mergen, damit die 7:30-Nachricht automatisch kommt.
+`schedule`-Trigger laufen nur auf dem **Default-Branch**. Diesen Branch nach `main`
+mergen, damit alle geplanten Workflows aktiv werden:
+- **Spritradar Daily** – die 7:30-Nachricht
+- **Spritradar Collect** – stündliches Preis-Sammeln (für die Charts)
+- **Spritradar Bot** – Poller für den `Graphs`-Befehl
+
 Sofort testen: `Actions → Spritradar Daily → Run workflow` (sendet direkt).
 
-## Standorte anpassen
-In `config.json`. `lat`/`lng` sind die Kartenkoordinaten, `radius_km` der Suchradius.
-Die aktuellen Werte decken **47798 Krefeld** und **47506 Neukirchen-Vluyn** ab.
+## Charts: „Graphs" im Telegram-Chat
+Schreib dem Bot **`Graphs`** – er antwortet mit drei Charts (gestern / heute / morgen),
+je Standort der Super-E10-Tagesverlauf über die Uhrzeit.
+
+- **Durchgezogen = gemessen**, **gestrichelt = Prognose** (typisches Tagesprofil ans
+  aktuelle Preisniveau angelegt). „Heute" ist bis zur aktuellen Uhrzeit gemessen,
+  danach extrapoliert; „gestern" ist gemessen (sobald Daten vorliegen), „morgen"
+  komplett Prognose.
+- **Datenbasis:** ein **stündlicher** Sammel-Job (`Spritradar Collect`) schreibt echte
+  Preise in `data/intraday.json`. In den ersten ein bis zwei Tagen sind die Kurven
+  noch modelliert; danach werden gestern/heute real.
+- **Antwortzeit:** GitHub kann nicht dauerhaft lauschen. Der Poller (`Spritradar Bot`)
+  fragt alle **10 Minuten** ab → bis zu ~10 Min Verzögerung. Intervall in
+  `.github/workflows/bot.yml` anpassbar.
+
+> ⚠️ **Actions-Minuten:** Sammeln (stündlich) + Poller (alle 10 Min) verbrauchen bei
+> **privaten** Repos Actions-Minuten (ggf. über dem Gratis-Kontingent). Bei einem
+> **öffentlichen** Repo ist GitHub Actions kostenlos/unbegrenzt. Alternativ Intervalle
+> verlängern.
+
+## Standorte & Einstellungen anpassen
+Alles in `config.json`:
+- **Standorte:** `lat`/`lng` (Kartenkoordinaten), `radius_km` (Suchradius). Aktuell
+  abgedeckt: **47798 Krefeld** und **47506 Neukirchen-Vluyn**.
+- **Bevorzugte Tankstelle** je Standort unter `preferred` (Marke/Straße/Ort) – wird
+  zusätzlich zur günstigsten mit Aufpreis angezeigt.
+- **Tägliche Fixwerte** unter `daily_tips` (`best_time`, `best_weekday`) – erscheinen
+  ganz am Ende der Nachricht in Klammern.
+- **Nachrichten** unter `news` (`enabled`, `model`, `query`, `max_headlines`).
 
 ## Lokal testen
 ```bash
@@ -63,6 +98,5 @@ FORCE=1 python -m spritradar.main
 ## Roadmap / Ideen
 - Makro-Signale ergänzen (Brent-Rohöl-Trend, EUR/USD, Rotterdam-Großhandel) für
   bessere Bewertung schon in den ersten Tagen.
-- „Warten oder kaufen?“-Ausblick über mehrere Tage.
-- Nachrichten-/Ereignis-Sentiment (OPEC+, Raffinerie-Ausfälle) – niedrige Priorität.
+- Nachrichten-Sentiment stärker in den Score einfließen lassen (aktuell separat angezeigt).
 - Backtesting gegen die Baseline „mittwochs abends tanken“.
