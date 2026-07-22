@@ -1,5 +1,5 @@
 {
-  "last_sent_date": "2026-07-21",
+  "last_sent_date": "2026-07-22",
   "locations": {
     "47798": [
       {
@@ -54,6 +54,14 @@
       },
       {
         "date": "2026-07-21",
+        "min_price": 2.059,
+        "station": "Die Zapfsäule Krefeld (Krefeld)",
+        "preferred": {
+          "JET Oranierring": 2.089
+        }
+      },
+      {
+        "date": "2026-07-22",
         "min_price": 2.059,
         "station": "Die Zapfsäule Krefeld (Krefeld)",
         "preferred": {
@@ -114,6 +122,14 @@
       },
       {
         "date": "2026-07-21",
+        "min_price": 2.079,
+        "station": "PM (Neukirchen-Vluyn)",
+        "preferred": {
+          "PM Neukirchen-Vluyn": 2.079
+        }
+      },
+      {
+        "date": "2026-07-22",
         "min_price": 2.079,
         "station": "PM (Neukirchen-Vluyn)",
         "preferred": {
