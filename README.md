@@ -27,10 +27,19 @@ GitHub Actions (cron 7:30)
 - **Historie:** Die freie API liefert nur aktuelle Preise. Deshalb speichert der
   Workflow jeden Morgen den günstigsten Preis in `data/history.json` und committet
   sie zurück. Der Score wird mit jedem Tag aussagekräftiger (ab ~4 Tagen Historie).
-- **Zeitplan:** Zwei cron-Trigger (Sommer-/Winterzeit); das Skript prüft die echte
-  Berliner Uhrzeit und sendet pro Tag nur einmal.
+- **Zeitplan:** läuft **lokal auf einem Mini-PC** (Windows Task Scheduler), weil
+  GitHubs geplante Läufe auf dem Gratis-Tarif regelmäßig ~2 h zu spät kamen. Der
+  Task Scheduler ist pünktlich → Nachricht ~07:30. Einrichtung: siehe
+  [`windows/README.md`](windows/README.md). Die GitHub-Workflows bleiben als
+  **manueller Auslöser** (`Run workflow`) erhalten.
 
-## Einrichtung
+## Einrichtung (Mini-PC)
+
+Die vollständige Schritt-für-Schritt-Anleitung steht in **[`windows/README.md`](windows/README.md)**
+(Python installieren, Repo klonen, `secrets.bat` ausfüllen, drei Task-Scheduler-Aufgaben:
+Daily 07:30, Collect stündlich, Bot alle 2 Min).
+
+## Manueller Betrieb über GitHub (optional / Test)
 
 ### 1. Secrets im Repo hinterlegen
 `Settings → Secrets and variables → Actions → New repository secret`:
@@ -47,14 +56,9 @@ GitHub Actions (cron 7:30)
 2. `Actions → Get Telegram Chat ID → Run workflow` starten.
 3. Die angezeigte Chat-ID als Secret **`TELEGRAM_CHAT_ID`** eintragen.
 
-### 3. Aktivieren
-`schedule`-Trigger laufen nur auf dem **Default-Branch**. Diesen Branch nach `main`
-mergen, damit alle geplanten Workflows aktiv werden:
-- **Spritradar Daily** – die 7:30-Nachricht
-- **Spritradar Collect** – stündliches Preis-Sammeln (für die Charts)
-- **Spritradar Bot** – Poller für den `Graphs`-Befehl
-
-Sofort testen: `Actions → Spritradar Daily → Run workflow` (sendet direkt).
+### 3. Manuell auslösen
+Alle Workflows haben nur noch `workflow_dispatch` (kein Zeitplan mehr):
+`Actions → Spritradar Daily → Run workflow` sendet sofort eine Nachricht.
 
 ## Charts: „Graphs" im Telegram-Chat
 Schreib dem Bot **`Graphs`** – er antwortet mit drei Charts (gestern / heute / morgen),
@@ -64,17 +68,11 @@ je Standort der Super-E10-Tagesverlauf über die Uhrzeit.
   aktuelle Preisniveau angelegt). „Heute" ist bis zur aktuellen Uhrzeit gemessen,
   danach extrapoliert; „gestern" ist gemessen (sobald Daten vorliegen), „morgen"
   komplett Prognose.
-- **Datenbasis:** ein **stündlicher** Sammel-Job (`Spritradar Collect`) schreibt echte
-  Preise in `data/intraday.json`. In den ersten ein bis zwei Tagen sind die Kurven
-  noch modelliert; danach werden gestern/heute real.
-- **Antwortzeit:** GitHub kann nicht dauerhaft lauschen. Der Poller (`Spritradar Bot`)
-  fragt alle **10 Minuten** ab → bis zu ~10 Min Verzögerung. Intervall in
-  `.github/workflows/bot.yml` anpassbar.
-
-> ⚠️ **Actions-Minuten:** Sammeln (stündlich) + Poller (alle 10 Min) verbrauchen bei
-> **privaten** Repos Actions-Minuten (ggf. über dem Gratis-Kontingent). Bei einem
-> **öffentlichen** Repo ist GitHub Actions kostenlos/unbegrenzt. Alternativ Intervalle
-> verlängern.
+- **Datenbasis:** der **stündliche** Sammel-Job (`spritradar.collect`, Task auf dem
+  Mini-PC) schreibt echte Preise in `data/intraday.json`. In den ersten ein bis zwei
+  Tagen sind die Kurven noch modelliert; danach werden gestern/heute real.
+- **Antwortzeit:** Der `Graphs`-Poller (`spritradar.bot`) läuft lokal alle **2 Minuten**
+  → Antwort fast sofort. Intervall im Task Scheduler anpassbar.
 
 ## Standorte & Einstellungen anpassen
 Alles in `config.json`:
