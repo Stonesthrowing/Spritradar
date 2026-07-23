@@ -1,22 +1,11 @@
 name: Spritradar Daily
 
-# Geplante Workflows (schedule) laufen nur auf dem Default-Branch. Damit die
-# Morgennachricht automatisch kommt, muss dieser Workflow auf dem Default-Branch
-# (main) liegen. Zum Testen: unten "Run workflow" (workflow_dispatch).
-#
-# Warum so viele Crons? GitHub-Cron ist "best effort" und wird gerade zur vollen
-# Stunde oft 10–30+ Min verzögert – ein einzelner 7:30-Trigger kam darum häufig
-# erst gegen 9–10 Uhr. Deshalb viele Versuche über den Morgen (UTC 05:25–07:05,
-# alle 5 Min; deckt Sommer- UTC+2 und Winterzeit UTC+1 ab). Genau EIN Lauf sendet:
-# der erste, der ab lokal 07:25 einen atomaren Git-Claim (data/sent/<datum>.flag)
-# gewinnt. Alle anderen sehen den Flag und überspringen – daher KEINE concurrency-
-# Sperre (die würde die meisten Versuche wegcanceln).
+# Zeitsteuerung läuft jetzt PÜNKTLICH über den Mini-PC (Windows Task Scheduler),
+# NICHT über GitHubs Scheduler – der lieferte geplante Läufe auf dem Gratis-Tarif
+# regelmäßig ~2 h zu spät (Nachricht kam erst 9–10 Uhr). Deshalb ist der
+# schedule-Trigger hier bewusst entfernt. Nur noch manuell auslösbar (Run workflow).
 
 on:
-  schedule:
-    - cron: "25-55/5 5 * * *"
-    - cron: "0-55/5 6 * * *"
-    - cron: "0-5/5 7 * * *"
   workflow_dispatch:
 
 permissions:
