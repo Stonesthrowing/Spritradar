@@ -90,9 +90,9 @@ def test_model_curve_anchored_at_ref_hour():
     # Am Referenzpunkt muss der Modellpreis exakt dem Anker entsprechen.
     curve = itd.model_curve(2.129, itd.REF_HOUR, itd.REF_HOUR, itd.REF_HOUR, step=0.5)
     assert abs(curve[0][1] - 2.129) < 1e-9
-    # Abends (21 Uhr) muss günstiger als morgens sein (Profil fällt ab).
+    # 12-Uhr-Regime: mittags (13 Uhr, nach dem Sprung) teurer als vormittags.
     full = dict(itd.model_curve(2.129, itd.REF_HOUR, 0, 24, step=1.0))
-    assert full[21] < full[itd.REF_HOUR]
+    assert full[13] > full[itd.REF_HOUR]
 
 
 def test_build_day_today_splits_real_and_model():
@@ -132,8 +132,56 @@ def test_learn_shape_learns_from_enough_days():
                                      for d in range(1, 7)}}}
     shape, learned = itd.learn_shape(store, exclude_date="2026-07-10", min_days=5)
     assert learned is True
-    # Gelerntes Profil: abends (21 Uhr) günstiger als morgens (6 Uhr).
-    assert shape[21] < shape[6]
+    # Gelerntes 12-Uhr-Regime: mittags (12) teurer als kurz davor (11).
+    assert shape[12] > shape[11]
+
+
+def _mk_stations(prices):
+    from spritradar.tankerkoenig import Station
+    return [Station(str(i), "S", "", p, 1.0, True, "Ort") for i, p in enumerate(prices)]
+
+
+def test_market_context_basic():
+    from spritradar.market import market_context
+    m = market_context(_mk_stations([2.00, 2.05, 2.10, 2.15, 2.20]), 2.05)
+    assert abs(m.median - 2.10) < 1e-9
+    assert m.delta_ct == -5.0
+    assert abs(m.pct_cheaper_than - 0.6) < 1e-9  # 3 von 5 teurer als 2,05
+
+
+def test_estimate_noon_jump_median():
+    from spritradar import plan as pl
+    store = {"locations": {"X": {
+        "2026-07-01": [{"t": "09:00", "price": 2.00}, {"t": "12:30", "price": 2.14}],
+        "2026-07-02": [{"t": "10:00", "price": 2.00}, {"t": "12:10", "price": 2.12}],
+    }}}
+    j, n = pl.estimate_noon_jump(store, "X", "2026-07-10")
+    assert n == 2 and 12.0 <= j <= 14.0
+
+
+def test_plan_wartet_when_evening_cheaper():
+    import datetime as dt
+    from zoneinfo import ZoneInfo
+    from spritradar import plan as pl, market as mk
+    store = {"locations": {"X": {
+        "2026-07-01": [{"t": "07:00", "price": 2.12}, {"t": "11:00", "price": 2.12},
+                       {"t": "12:30", "price": 2.24}, {"t": "19:00", "price": 2.06}],
+    }}}
+    now = dt.datetime(2026, 7, 2, 7, 31, tzinfo=ZoneInfo("Europe/Berlin"))
+    p = pl.build_plan("X", "🏠", now, 2.12, mk.market_context(_mk_stations([2.12, 2.14]), 2.12),
+                      store, "X")
+    assert p.recommendation == "WARTEN"
+    assert p.best is not None and p.best.name != "jetzt"
+
+
+def test_plan_tankt_when_flat_no_history():
+    import datetime as dt
+    from zoneinfo import ZoneInfo
+    from spritradar import plan as pl, market as mk
+    now = dt.datetime(2026, 7, 2, 7, 31, tzinfo=ZoneInfo("Europe/Berlin"))
+    p = pl.build_plan("X", "🏠", now, 2.05, mk.market_context(_mk_stations([2.05, 2.07]), 2.05),
+                      {"locations": {}}, "X")
+    assert p.recommendation == "TANKEN"
 
 
 def test_message_builds():

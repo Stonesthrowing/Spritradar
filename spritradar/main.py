@@ -14,11 +14,13 @@ from zoneinfo import ZoneInfo
 
 from . import analysis
 from . import history as hist
+from . import intraday as itd
+from . import market as market_mod
 from . import news as news_mod
+from . import plan as plan_mod
 from . import telegram
 from .config import load_config, load_secrets
-from .message import LocationResult, PreferredResult, build_message
-from .scoring import score_today
+from .message import build_tankplan
 from .tankerkoenig import fetch_stations, find_preferred
 
 
@@ -47,7 +49,8 @@ def run() -> int:
             print(f"[Spritradar] Heute ({today}) bereits gesendet – überspringe.")
             return 0
 
-    results = []
+    intraday_store = itd.load_intraday()
+    plans = []
     for loc in cfg.locations:
         try:
             stations = fetch_stations(
@@ -61,36 +64,31 @@ def run() -> int:
             continue
 
         cheapest = stations[0]
-        recent = hist.recent_prices(data, loc.plz, cfg.history_window_days, exclude_date=today)
-        score = score_today(cheapest.price, recent, cfg.min_history_for_score)
 
-        preferred_results = []
+        # Bevorzugte Station bestimmen (der Preis, den du zahlst); sonst günstigste.
+        favorite = None
         preferred_prices = {}
         for spec in loc.preferred:
             match = find_preferred(stations, spec)
-            if match is None:
-                preferred_results.append(PreferredResult(spec.label, None, None))
-                continue
-            delta = match.price - cheapest.price
-            preferred_results.append(
-                PreferredResult(
-                    label=spec.label,
-                    price=match.price,
-                    delta_to_cheapest=delta,
-                    is_cheapest=(match.id == cheapest.id),
-                )
-            )
-            preferred_prices[spec.label] = round(match.price, 3)
+            if match is not None:
+                preferred_prices[spec.label] = round(match.price, 3)
+                if favorite is None:
+                    favorite = match
+        current_price = favorite.price if favorite else cheapest.price
 
-        results.append(
-            LocationResult(loc.name, loc.emoji, score, cheapest.label, preferred_results)
+        market = market_mod.market_context(stations, current_price)
+        plans.append(
+            plan_mod.build_plan(
+                loc.name, loc.emoji, now_local, current_price, market, intraday_store, loc.plz
+            )
         )
 
+        # Tages-Historie weiterpflegen (Tagesminimum + Favorit) für Charts/Verlauf.
         hist.append_reading(
             data, loc.plz, today, cheapest.price, cheapest.label, preferred=preferred_prices
         )
 
-    if not results:
+    if not plans:
         print("[Spritradar] Keine Ergebnisse – nichts zu senden.", file=sys.stderr)
         return 1
 
@@ -105,7 +103,7 @@ def run() -> int:
         except Exception as exc:
             print(f"[Spritradar] News übersprungen: {exc}", file=sys.stderr)
 
-    text = build_message(now_local, results, news=insight, daily_tips=cfg.daily_tips)
+    text = build_tankplan(now_local, plans, news=insight)
     print("----- Nachricht -----")
     print(text)
     print("---------------------")
