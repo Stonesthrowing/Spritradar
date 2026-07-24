@@ -4,8 +4,8 @@ name: Spritradar Collect
 # Läuft nur auf dem Default-Branch (wie alle geplanten Workflows).
 
 on:
-  schedule:
-    - cron: "5 * * * *"   # stündlich zur Minute 5
+  # Sammeln läuft jetzt lokal auf dem Mini-PC (stündlicher Task). GitHub-Zeitplan
+  # entfernt, damit Daten nicht doppelt/aus zwei Quellen geschrieben werden.
   workflow_dispatch:
 
 permissions:

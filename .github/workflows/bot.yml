@@ -5,8 +5,8 @@ name: Spritradar Bot
 # Intervall bei Bedarf verkürzen (Achtung: verbraucht mehr Actions-Minuten).
 
 on:
-  schedule:
-    - cron: "*/10 * * * *"   # alle 10 Minuten
+  # Der "Graphs"-Poller läuft jetzt lokal auf dem Mini-PC (kurzer Task-Intervall
+  # -> fast sofortige Antwort). GitHub-Zeitplan entfernt. Nur noch manuell.
   workflow_dispatch:
 
 permissions:
