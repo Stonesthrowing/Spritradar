@@ -1,5 +1,5 @@
 {
-  "last_sent_date": "2026-07-23",
+  "last_sent_date": "2026-07-24",
   "locations": {
     "47798": [
       {
@@ -74,6 +74,14 @@
         "station": "CLASSIC (Krefeld)",
         "preferred": {
           "JET Oranierring": 2.099
+        }
+      },
+      {
+        "date": "2026-07-24",
+        "min_price": 2.069,
+        "station": "CleanCar Tankautomat (Krefeld)",
+        "preferred": {
+          "JET Oranierring": 2.109
         }
       }
     ],
@@ -150,6 +158,14 @@
         "station": "PM (Neukirchen-Vluyn)",
         "preferred": {
           "PM Neukirchen-Vluyn": 2.099
+        }
+      },
+      {
+        "date": "2026-07-24",
+        "min_price": 2.109,
+        "station": "PM (Neukirchen-Vluyn)",
+        "preferred": {
+          "PM Neukirchen-Vluyn": 2.109
         }
       }
     ]
