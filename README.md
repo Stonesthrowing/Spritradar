@@ -1,23 +1,30 @@
 # Spritradar
 
-Täglich um **7:30 Uhr** eine Telegram-Nachricht mit einer Bewertung von **1–10**,
-wie gut der heutige Tag zum Tanken von **Super E10** ist – für zwei Standorte
-(Zuhause & Arbeit).
+Täglich früh eine Telegram-Nachricht mit klarer Handlungsempfehlung – **WARTEN**
+oder **JETZT TANKEN** – für **Super E10** an zwei Standorten (Zuhause & Arbeit),
+inkl. bestem Zeitfenster heute und transparentem 0–100-Score je Fenster.
 
-Der Score misst das heutige Preisniveau **relativ zum jüngsten Verlauf**:
-10 = so günstig wie lange nicht (kaufen), 1 = deutlich über dem jüngsten Niveau
-(lieber warten).
+**12-Uhr-Regime (KPAnG, seit 01.04.2026):** Tankstellen dürfen Preise nur noch
+**1× täglich um 12:00 erhöhen**, Senkungen jederzeit. Daraus folgt hart: vor 12 Uhr
+kann der Preis nicht steigen (Warten bis kurz vor 12 ist risikolos), um 12:00 ein
+einmaliger Sprung (ADAC-Mittel ~14,6 ct/l bei E10), danach nur noch Rückgang bis
+zum Abendtief. Das Modell ist genau darauf ausgerichtet.
 
 ## Wie es funktioniert
 
 ```
-GitHub Actions (cron 7:30)
+Mini-PC (Task Scheduler, morgens)
         │
-        ├─ Tankerkönig-API   → aktuelle E10-Preise im Umkreis je Standort
-        ├─ data/history.json → selbst gesammelte Preishistorie (letzte Tage)
-        ├─ Scoring           → Preis von heute vs. Verlauf → Score 1–10
-        └─ Telegram-Bot      → Nachricht an dich
+        ├─ Tankerkönig-API   → aktuelle E10-Preise je Standort + Umkreis (Markt-Median)
+        ├─ data/intraday.json→ selbst gesammelter Tagesverlauf (12-Uhr-Sprung, Abendtief)
+        ├─ Regime-Modell     → bestes Fenster heute + Score + WARTEN/TANKEN (transparent)
+        └─ Telegram-Bot      → Tankplan-Nachricht an dich
 ```
+
+Das Modell ist **kein Blackbox-Orakel**, sondern additiv und nachvollziehbar:
+lokaler Markt-Median (ist der Favorit wirklich günstig?), aus der Historie
+geschätzter 12-Uhr-Sprung, erreichbares Tagestief, daraus Empfehlung + Score.
+Je mehr eigene Daten, desto schärfer (stationsspezifisch ab ~4 Wochen).
 
 - **Datenquelle Preise:** [Tankerkönig](https://creativecommons.tankerkoenig.de) (offizielle MTS-K-Preise, kostenlos).
 - **Nachrichtenlage:** aktuelle Schlagzeilen zu Benzin/Öl/OPEC über Google-News-RSS

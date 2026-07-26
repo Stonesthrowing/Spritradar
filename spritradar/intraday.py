@@ -17,16 +17,19 @@ from .config import REPO_ROOT
 
 INTRADAY_PATH = REPO_ROOT / "data" / "intraday.json"
 
-# Typisches E10-Tagesprofil: relativer Aufschlag in ct (hoch = teuer).
-# Morgens teuer (Peak ~6 Uhr), abends günstig (~18–21 Uhr). Näherung nach
-# bekanntem ADAC-Muster; wird durch echte Messungen zunehmend ersetzt.
+# E10-Tagesprofil im 12-Uhr-Regime (KPAnG, seit 01.04.2026): relativer Aufschlag
+# in ct (hoch = teuer). Preise dürfen nur 1x täglich um 12:00 steigen, sonst nur
+# fallen. Daher: morgens flach/tief, Tiefpunkt kurz vor 12, Sprung ~+14,6 ct um
+# 12:00 (ADAC Mai 2026), danach nur noch Rückgang bis Abendtief. Näherungswerte –
+# werden durch echte Messungen (learn_shape) zunehmend ersetzt.
 SHAPE = {
-    0: 6.0, 1: 6.0, 2: 6.0, 3: 6.0, 4: 6.0, 5: 6.5, 6: 6.0, 7: 5.0,
-    8: 3.5, 9: 2.0, 10: 1.0, 11: 0.0, 12: -1.0, 13: -0.5, 14: 0.0, 15: 0.5,
-    16: 0.0, 17: -1.5, 18: -3.5, 19: -4.0, 20: -4.5, 21: -5.0, 22: -3.0, 23: 0.0,
-    24: 6.0,
+    0: -6.0, 1: -6.0, 2: -6.0, 3: -6.0, 4: -6.0, 5: -6.5, 6: -6.5, 7: -7.0,
+    8: -7.0, 9: -7.5, 10: -7.5, 11: -8.0, 12: 6.6, 13: 7.0, 14: 6.0, 15: 4.0,
+    16: 2.0, 17: -0.5, 18: -3.0, 19: -5.0, 20: -6.0, 21: -6.5, 22: -6.0, 23: -6.0,
+    24: -6.0,
 }
-REF_HOUR = 6  # Stunde, auf die sich die Morgen-Referenz bezieht
+REF_HOUR = 7  # Stunde, auf die sich die Morgen-Referenz bezieht (vor dem Sprung)
+NOON_JUMP_DEFAULT_CT = 14.6  # ADAC-Mittel Mai 2026 (Fallback ohne eigene Historie)
 KEEP_DAYS = 4  # so viele Tage Intraday-Historie behalten
 
 

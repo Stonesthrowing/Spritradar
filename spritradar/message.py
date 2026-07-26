@@ -13,6 +13,7 @@ import holidays
 
 from .analysis import NewsInsight
 from .config import DailyTips
+from .plan import DayPlan, score_emoji
 from .scoring import Score
 
 WEEKDAYS_DE = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]
@@ -102,6 +103,57 @@ def build_message(
             f"(Beste Uhrzeit: {daily_tips.best_time} · "
             f"Bester Wochentag: {daily_tips.best_weekday})"
         )
+    return "\n".join(lines).strip()
+
+
+def _price_range(low: float, high: float) -> str:
+    if abs(high - low) < 0.0005:
+        return _euro(low)
+    return f"{low:.3f}".replace(".", ",") + "–" + f"{high:.3f}".replace(".", ",") + " €"
+
+
+def _window_line(label: str, low: float, high: float, score: int) -> str:
+    return f"{label:<16} {_price_range(low, high)}   {score_emoji(score)} {score}/100"
+
+
+def build_tankplan(
+    now_local: dt.datetime,
+    plans: list[DayPlan],
+    news: NewsInsight | None = None,
+) -> str:
+    """Morgennachricht im 12-Uhr-Regime: Empfehlung + bestes Fenster je Station."""
+    date_str = f"{WEEKDAYS_DE[now_local.weekday()]}, {now_local:%d.%m.%Y}"
+    lines = [f"⛽ E10-Tankplan – {date_str}", f"Datenstand: {now_local:%H:%M} Uhr", ""]
+
+    overall_wait = any(p.recommendation == "WARTEN" for p in plans)
+    lines.append(f"EMPFEHLUNG: {'WARTEN' if overall_wait else 'JETZT TANKEN OK'}")
+    if overall_wait:
+        first = next(p for p in plans if p.recommendation == "WARTEN")
+        if first.best is not None:
+            lines.append(f"Günstigstes Fenster heute: {first.best.label_time}")
+    lines.append("")
+
+    for p in plans:
+        lines.append(f"{p.emoji} {p.name}")
+        for w in p.windows:
+            disp = w.label_time[:1].upper() + w.label_time[1:]
+            lines.append(_window_line(disp, w.price_low, w.price_high, w.score))
+        lines.append(f"→ {p.action_line}")
+        if p.reasons:
+            lines.append("Warum:")
+            for r in p.reasons:
+                lines.append(f"• {r}")
+        lines.append("")
+
+    if news is not None:
+        lines.append(_news_block(news))
+        lines.append("")
+
+    lines.append(_outlook_note(now_local))
+    conf = ", ".join(sorted({p.confidence for p in plans})) if plans else "gering"
+    hint = " (Daten werden noch gesammelt)" if plans and min(p.data_days for p in plans) < 14 else ""
+    lines.append(f"Prognosesicherheit: {conf}{hint}")
+    lines.append("Quelle: MTS-K via Tankerkönig, CC BY 4.0")
     return "\n".join(lines).strip()
 
 
