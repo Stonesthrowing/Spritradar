@@ -54,6 +54,43 @@ bleibt lokal (steht in `.gitignore`).
 
 ## Task Scheduler (Aufgabenplanung) einrichten
 
+> ‼️ **Ohne diese Tasks passiert nichts automatisch** – `run-daily.bat` läuft dann nur,
+> wenn du es von Hand startest. Genau das ist der häufigste Grund für „die Nachricht
+> kommt morgens nicht".
+
+### Schnellweg: drei Befehle (empfohlen)
+
+Eingabeaufforderung **als Administrator** öffnen (Start → „cmd" tippen → Rechtsklick →
+„Als Administrator ausführen") und einfügen:
+
+```
+schtasks /Create /F /TN "Spritradar Daily"   /TR "C:\Spritradar\windows\run-daily.bat quiet"   /SC DAILY  /ST 07:30
+schtasks /Create /F /TN "Spritradar Collect" /TR "C:\Spritradar\windows\run-collect.bat quiet" /SC HOURLY /ST 00:05
+schtasks /Create /F /TN "Spritradar Bot"     /TR "C:\Spritradar\windows\run-bot.bat quiet"     /SC MINUTE /MO 2
+```
+
+Nur werktags (Mo–Fr) statt täglich – erste Zeile stattdessen so:
+```
+schtasks /Create /F /TN "Spritradar Daily" /TR "C:\Spritradar\windows\run-daily.bat quiet" /SC WEEKLY /D MON,TUE,WED,THU,FRI /ST 07:30
+```
+
+**Sofort testen** (schickt eine Nachricht):
+```
+schtasks /Run /TN "Spritradar Daily"
+```
+
+**Kontrollieren** (zeigt letzte/nächste Laufzeit und letztes Ergebnis; `0` = ok):
+```
+schtasks /Query /TN "Spritradar Daily" /V /FO LIST
+```
+
+Die so angelegten Tasks laufen, **solange der Benutzer angemeldet ist**. Wenn der
+Mini-PC dauerhaft angemeldet bleibt, passt das. Sonst in der Aufgabenplanung beim
+Task unter „Allgemein" auf **„Unabhängig von der Benutzeranmeldung ausführen"**
+umstellen (Windows fragt einmal das Kontopasswort ab).
+
+### Alternative: über die Oberfläche
+
 `Win`-Taste → „Aufgabenplanung" öffnen → rechts **„Aufgabe erstellen…"** (nicht „einfache Aufgabe").
 
 > In allen drei Tasks bei „Argumente hinzufügen" **`quiet`** eintragen. Dann wartet
@@ -109,4 +146,6 @@ windows\run-daily.bat
 | `No module named 'requests'` (o. ä.) | Abhängigkeiten fehlen: `.venv\Scripts\python.exe -m pip install -r requirements.txt` |
 | `Python-Umgebung fehlt` | `py -m venv .venv`, danach die pip-Zeile oben |
 | `Das System kann den angegebenen Pfad nicht finden` | Falsches Verzeichnis – erst `cd C:\Spritradar` |
+| Morgens kommt **keine** Nachricht | Task fehlt oder schlägt fehl. Prüfen: `schtasks /Query /TN "Spritradar Daily" /V /FO LIST` – „Letztes Ergebnis" muss `0` sein. Fehlt der Task ganz, die drei `schtasks /Create`-Befehle oben ausführen. |
+| Task existiert, „Letztes Ergebnis" ≠ 0 | Skript bricht ab – einmal von Hand starten (`cd C:\Spritradar` + `windows\run-daily.bat`), Meldung lesen |
 | `"py" ist nicht als Befehl erkannt` | Python fehlt: von python.org installieren, dabei **„Add python.exe to PATH"** ankreuzen |
