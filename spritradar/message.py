@@ -135,9 +135,22 @@ def build_tankplan(
 
     for p in plans:
         lines.append(f"{p.emoji} {p.name}")
+        fav = p.favorite_label or "Favorit"
+        lines.append(f"⭐ {fav}")
         for w in p.windows:
             disp = w.label_time[:1].upper() + w.label_time[1:]
-            lines.append(_window_line(disp, w.price_low, w.price_high, w.score))
+            lines.append("   " + _window_line(disp, w.price_low, w.price_high, w.score))
+
+        # Günstigste vor Ort – lohnt sich der Umweg?
+        if p.cheapest_price is not None:
+            if p.favorite_is_cheapest:
+                lines.append(f"🏅 Günstigste vor Ort: dein Favorit ({_euro(p.cheapest_price)}) 👍")
+            else:
+                d = f"{p.detour_ct:.1f}".replace(".", ",")
+                lines.append(
+                    f"🏅 Günstigste vor Ort: {p.cheapest_label} – {_euro(p.cheapest_price)} "
+                    f"({d} ct günstiger)"
+                )
         lines.append(f"→ {p.action_line}")
         if p.reasons:
             lines.append("Warum:")

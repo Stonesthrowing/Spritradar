@@ -82,25 +82,39 @@ def fetch_stations(
 
 
 def _norm(value: str) -> str:
-    return (value or "").casefold().strip()
+    """Robust vergleichbar machen: Umlaute, Satzzeichen und Leerzeichen egalisieren.
+
+    Tankerkönig schreibt Adressen uneinheitlich ("Andreas-Bräm-Straße",
+    "Andreas-Braem-Str."). Nach der Normalisierung passt ein kurzes,
+    markantes Teilstück ("Andreas-Bräm") auf alle Varianten.
+    """
+    s = (value or "").casefold().strip()
+    for src, dst in (("ä", "ae"), ("ö", "oe"), ("ü", "ue"), ("ß", "ss")):
+        s = s.replace(src, dst)
+    return "".join(ch for ch in s if ch.isalnum())
+
+
+def _matches(spec, st: Station, use_street: bool) -> bool:
+    if spec.brand and _norm(spec.brand) not in _norm(st.brand) and _norm(spec.brand) not in _norm(st.name):
+        return False
+    if use_street and spec.street and _norm(spec.street) not in _norm(st.street):
+        return False
+    if spec.place and _norm(spec.place) not in _norm(st.place):
+        return False
+    return True
 
 
 def find_preferred(stations: list[Station], spec) -> Station | None:
     """Bevorzugte Tankstelle in der Trefferliste finden.
 
-    Harte Filter: Marke (in brand ODER name), Straße, Ort.
-    Hausnummer wird bevorzugt, aber nicht erzwungen (Formatierung variiert).
-    Bei mehreren Treffern gewinnt der günstigste.
+    Filter: Marke (in brand ODER name), Straße, Ort. Hausnummer wird bevorzugt,
+    aber nicht erzwungen (Formatierung variiert). Findet die Straßenangabe nichts
+    (abweichende Schreibweise), wird ohne Straße erneut gesucht, damit der Favorit
+    nicht ganz verloren geht. Bei mehreren Treffern gewinnt der günstigste.
     """
-    cands: list[Station] = []
-    for st in stations:
-        if spec.brand and _norm(spec.brand) not in _norm(st.brand) and _norm(spec.brand) not in _norm(st.name):
-            continue
-        if spec.street and _norm(spec.street) not in _norm(st.street):
-            continue
-        if spec.place and _norm(spec.place) not in _norm(st.place):
-            continue
-        cands.append(st)
+    cands = [st for st in stations if _matches(spec, st, use_street=True)]
+    if not cands and spec.street:
+        cands = [st for st in stations if _matches(spec, st, use_street=False)]
     if not cands:
         return None
     if spec.house_number:

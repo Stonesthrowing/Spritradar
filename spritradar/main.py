@@ -67,6 +67,7 @@ def run() -> int:
 
         # Bevorzugte Station bestimmen (der Preis, den du zahlst); sonst günstigste.
         favorite = None
+        favorite_label = ""
         preferred_prices = {}
         for spec in loc.preferred:
             match = find_preferred(stations, spec)
@@ -74,12 +75,20 @@ def run() -> int:
                 preferred_prices[spec.label] = round(match.price, 3)
                 if favorite is None:
                     favorite = match
+                    favorite_label = spec.label
+            else:
+                print(f"[Spritradar] Favorit nicht gefunden: {spec.label}", file=sys.stderr)
         current_price = favorite.price if favorite else cheapest.price
+        if favorite is None:
+            favorite_label = f"{cheapest.label} (günstigste)"
 
         market = market_mod.market_context(stations, current_price)
         plans.append(
             plan_mod.build_plan(
-                loc.name, loc.emoji, now_local, current_price, market, intraday_store, loc.plz
+                loc.name, loc.emoji, now_local, current_price, market, intraday_store, loc.plz,
+                favorite_label=favorite_label,
+                cheapest_label=cheapest.label,
+                cheapest_price=cheapest.price,
             )
         )
 

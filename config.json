@@ -25,10 +25,11 @@
       "radius_km": 4.0,
       "preferred": [
         {
-          "label": "JET Oranierring",
+          "label": "JET Oranierring 51",
           "brand": "JET",
           "street": "Oranierring",
-          "house_number": "51"
+          "house_number": "51",
+          "place": "Krefeld"
         }
       ]
     },
@@ -41,8 +42,10 @@
       "radius_km": 4.0,
       "preferred": [
         {
-          "label": "PM Neukirchen-Vluyn",
+          "label": "PM Andreas-Bräm-Str. 32B",
           "brand": "PM",
+          "street": "Andreas-Bräm",
+          "house_number": "32B",
           "place": "Neukirchen-Vluyn"
         }
       ]

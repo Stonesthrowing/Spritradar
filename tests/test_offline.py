@@ -60,6 +60,56 @@ def test_find_preferred_by_brand_and_street():
     assert match.price == 2.159
 
 
+def test_find_preferred_umlaut_and_abbreviation():
+    """Straße wird je nach Quelle anders geschrieben – muss trotzdem matchen."""
+    from spritradar.tankerkoenig import Station, find_preferred
+    spec = PreferredSpec(label="PM", brand="PM", street="Andreas-Bräm",
+                         house_number="32B", place="Neukirchen-Vluyn")
+    for written in ("Andreas-Bräm-Straße", "Andreas-Braem-Str.", "ANDREAS-BRAEM-STRASSE"):
+        stations = [
+            Station("1", "PM", "PM", 2.099, 0.5, True, "Neukirchen-Vluyn", written, "32 B"),
+            Station("2", "ARAL", "ARAL", 2.089, 1.0, True, "Neukirchen-Vluyn", "Hauptstr.", "1"),
+        ]
+        match = find_preferred(stations, spec)
+        assert match is not None and match.id == "1", written
+
+
+def test_find_preferred_falls_back_without_street():
+    """Passt die Straße nicht, greift der Fallback über Marke+Ort."""
+    from spritradar.tankerkoenig import Station, find_preferred
+    spec = PreferredSpec(label="PM", brand="PM", street="Voellig-Andere-Str",
+                         place="Neukirchen-Vluyn")
+    stations = [Station("1", "PM", "PM", 2.099, 0.5, True, "Neukirchen-Vluyn",
+                        "Andreas-Bräm-Straße", "32B")]
+    match = find_preferred(stations, spec)
+    assert match is not None and match.id == "1"
+
+
+def test_plan_reports_detour_saving():
+    import datetime as dt
+    from zoneinfo import ZoneInfo
+    from spritradar import plan as pl, market as mk
+    now = dt.datetime(2026, 8, 1, 7, 31, tzinfo=ZoneInfo("Europe/Berlin"))
+    p = pl.build_plan("X", "🏠", now, 2.289, mk.market_context(_mk_stations([2.259, 2.289]), 2.289),
+                      {"locations": {}}, "X",
+                      favorite_label="JET Oranierring 51",
+                      cheapest_label="Die Zapfsäule (Krefeld)", cheapest_price=2.259)
+    assert p.detour_ct == 3.0
+    assert p.favorite_is_cheapest is False
+    assert any("Umweg" in r for r in p.reasons)
+
+
+def test_plan_marks_favorite_as_cheapest():
+    import datetime as dt
+    from zoneinfo import ZoneInfo
+    from spritradar import plan as pl, market as mk
+    now = dt.datetime(2026, 8, 1, 7, 31, tzinfo=ZoneInfo("Europe/Berlin"))
+    p = pl.build_plan("X", "🏢", now, 2.099, mk.market_context(_mk_stations([2.099, 2.149]), 2.099),
+                      {"locations": {}}, "X",
+                      favorite_label="PM", cheapest_label="PM", cheapest_price=2.099)
+    assert p.favorite_is_cheapest is True
+
+
 def test_find_preferred_missing_returns_none():
     spec = PreferredSpec(label="PM", brand="PM", place="Neukirchen-Vluyn")
     assert find_preferred(_stations(), spec) is None
