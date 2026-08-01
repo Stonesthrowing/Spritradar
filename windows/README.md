@@ -33,8 +33,19 @@ py -m venv .venv
 ```
 
 ### 4. Secrets eintragen
-`windows\secrets.example.bat` kopieren zu **`windows\secrets.bat`** und die Werte
-eintragen (dieselben wie in den GitHub-Secrets). `secrets.bat` bleibt lokal (gitignore).
+Am sichersten in der Eingabeaufforderung (vermeidet die `.txt`-Falle):
+```
+cd C:\Spritradar
+copy windows\secrets.example.bat windows\secrets.bat
+notepad windows\secrets.bat
+```
+Werte eintragen (dieselben wie in den GitHub-Secrets), speichern. `secrets.bat`
+bleibt lokal (steht in `.gitignore`).
+
+> ⚠️ **Häufigster Fehler:** Legt man die Datei per Rechtsklick/Notepad an, heißt sie
+> oft in Wirklichkeit `secrets.bat.txt` (Windows blendet bekannte Endungen aus) – dann
+> meldet das Skript „secrets.bat fehlt". Prüfen mit `dir windows` in der
+> Eingabeaufforderung; ggf. `ren windows\secrets.bat.txt secrets.bat`.
 
 ### 5. Testen (Doppelklick)
 - `windows\run-daily.bat` → es sollte eine **Telegram-Nachricht** kommen.
@@ -45,19 +56,23 @@ eintragen (dieselben wie in den GitHub-Secrets). `secrets.bat` bleibt lokal (git
 
 `Win`-Taste → „Aufgabenplanung" öffnen → rechts **„Aufgabe erstellen…"** (nicht „einfache Aufgabe").
 
+> In allen drei Tasks bei „Argumente hinzufügen" **`quiet`** eintragen. Dann wartet
+> das Skript im Fehlerfall nicht auf einen Tastendruck (beim Doppelklick bleibt das
+> Fenster dagegen offen, damit du die Meldung lesen kannst).
+
 ### Task „Spritradar Daily" (die 7:30-Nachricht)
 - **Trigger:** Täglich, Start **07:30**.
-- **Aktion:** Programm/Skript = `C:\Spritradar\windows\run-daily.bat`
+- **Aktion:** Programm/Skript = `C:\Spritradar\windows\run-daily.bat`, Argumente = `quiet`
 - **Bedingungen:** „Computer für die Ausführung reaktivieren" ankreuzen (falls der PC schläft).
 - **Einstellungen:** „Aufgabe so schnell wie möglich nach verpasstem Start ausführen" ankreuzen.
 
 ### Task „Spritradar Collect" (stündlich sammeln)
 - **Trigger:** Täglich 00:00 → „Wiederholen alle: **1 Stunde**", „für die Dauer von: **Unbegrenzt**".
-- **Aktion:** `C:\Spritradar\windows\run-collect.bat`
+- **Aktion:** `C:\Spritradar\windows\run-collect.bat`, Argumente = `quiet`
 
 ### Task „Spritradar Bot" (schnelle Graphs-Antwort)
 - **Trigger:** Täglich 00:00 → „Wiederholen alle: **2 Minuten**", „für die Dauer von: **Unbegrenzt**".
-- **Aktion:** `C:\Spritradar\windows\run-bot.bat`
+- **Aktion:** `C:\Spritradar\windows\run-bot.bat`, Argumente = `quiet`
 
 **Tipp:** In jedem Task unter „Allgemein" die Option **„Unabhängig von der Benutzeranmeldung
 ausführen"** wählen, dann laufen die Skripte im Hintergrund ohne aufblitzendes Fenster
@@ -79,3 +94,19 @@ git pull
 ## Uhrzeit anpassen
 Die 7:30 stehen im Task-Trigger (nicht mehr in der Config). Trigger-Zeit im Task
 Scheduler ändern – fertig.
+
+## Fehlerbehebung
+
+Immer aus **`C:\Spritradar`** starten (nicht aus `C:\` oder `C:\Windows`):
+```
+cd C:\Spritradar
+windows\run-daily.bat
+```
+
+| Meldung | Ursache & Lösung |
+| --- | --- |
+| `windows\secrets.bat fehlt` | Datei nicht vorhanden – oder sie heißt in Wirklichkeit `secrets.bat.txt`. Prüfen: `dir windows` · Umbenennen: `ren windows\secrets.bat.txt secrets.bat` |
+| `No module named 'requests'` (o. ä.) | Abhängigkeiten fehlen: `.venv\Scripts\python.exe -m pip install -r requirements.txt` |
+| `Python-Umgebung fehlt` | `py -m venv .venv`, danach die pip-Zeile oben |
+| `Das System kann den angegebenen Pfad nicht finden` | Falsches Verzeichnis – erst `cd C:\Spritradar` |
+| `"py" ist nicht als Befehl erkannt` | Python fehlt: von python.org installieren, dabei **„Add python.exe to PATH"** ankreuzen |
