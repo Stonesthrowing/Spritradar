@@ -42,7 +42,7 @@ class Window:
 class DayPlan:
     name: str
     emoji: str
-    current_price: float
+    current_price: float             # Preis am Favoriten (dort tankst du normalerweise)
     market: MarketContext
     noon_jump_ct: float
     noon_jump_n: int
@@ -52,6 +52,21 @@ class DayPlan:
     action_line: str = ""
     reasons: list[str] = field(default_factory=list)
     data_days: int = 0
+    favorite_label: str = ""          # Name der bevorzugten Tankstelle
+    cheapest_label: str = ""          # günstigste Station im Umkreis
+    cheapest_price: float | None = None
+
+    @property
+    def detour_ct(self) -> float | None:
+        """Ersparnis in ct, wenn statt des Favoriten die günstigste angefahren wird."""
+        if self.cheapest_price is None:
+            return None
+        return round((self.current_price - self.cheapest_price) * 100, 1)
+
+    @property
+    def favorite_is_cheapest(self) -> bool:
+        d = self.detour_ct
+        return d is not None and d <= 0.05
 
     @property
     def confidence(self) -> str:
@@ -127,7 +142,9 @@ def score_emoji(score: int) -> str:
 
 # ------------------------------------------------------------------- Hauptbau ---
 def build_plan(name: str, emoji: str, now_local: dt.datetime, current_price: float,
-               market: MarketContext, store: dict, plz: str) -> DayPlan:
+               market: MarketContext, store: dict, plz: str,
+               favorite_label: str = "", cheapest_label: str = "",
+               cheapest_price: float | None = None) -> DayPlan:
     today = now_local.date().isoformat()
     now_h = now_local.hour + now_local.minute / 60.0
     data_days = len(_past_days(store, plz, today))
@@ -138,7 +155,9 @@ def build_plan(name: str, emoji: str, now_local: dt.datetime, current_price: flo
     prenoon_dip = min(prenoon_dip, 0.0)  # vor 12 kann es nur runtergehen
 
     plan = DayPlan(name=name, emoji=emoji, current_price=current_price, market=market,
-                   noon_jump_ct=noon_jump, noon_jump_n=jump_n, data_days=data_days)
+                   noon_jump_ct=noon_jump, noon_jump_n=jump_n, data_days=data_days,
+                   favorite_label=favorite_label, cheapest_label=cheapest_label,
+                   cheapest_price=cheapest_price)
 
     # Fenster aufbauen -------------------------------------------------------
     windows = [Window("jetzt", "jetzt", current_price, current_price, reachable=True)]
@@ -192,5 +211,13 @@ def build_plan(name: str, emoji: str, now_local: dt.datetime, current_price: flo
         off_str = f"{abs(evening_off):.1f}".replace(".", ",")
         plan.reasons.append(
             f"An vergleichbaren Tagen abends im Schnitt {off_str} ct unter Vormittag."
+        )
+
+    detour = plan.detour_ct
+    if detour is not None and detour >= 2.0:
+        d_str = f"{detour:.1f}".replace(".", ",")
+        saving_str = f"{detour * 0.5:.2f}".replace(".", ",")
+        plan.reasons.append(
+            f"Umweg zur günstigsten spart {d_str} ct/l (bei 50 l rund {saving_str} €)."
         )
     return plan
