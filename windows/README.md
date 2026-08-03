@@ -132,6 +132,22 @@ git pull
 Die 7:30 stehen im Task-Trigger (nicht mehr in der Config). Trigger-Zeit im Task
 Scheduler ändern – fertig.
 
+## Status prüfen (bei „die Nachricht kam nicht")
+
+Doppelklick auf **`windows\status.bat`** – zeigt auf einen Blick:
+- ob die drei Aufgaben überhaupt **angelegt** sind,
+- **letzte / nächste Laufzeit** und **letztes Ergebnis** (`0` = ok),
+- ob `secrets.bat` und die Python-Umgebung da sind,
+- die letzten Zeilen aus **`logs\spritradar.log`**.
+
+Jeder Lauf schreibt ins Log, z. B.:
+```
+[04.08.2026  7:30:02,11] daily : Start
+[04.08.2026  7:30:09,84] daily : OK - Nachricht gesendet
+```
+Steht dort morgens **gar nichts**, hat der Task nicht ausgelöst (meist: nicht angelegt).
+Steht dort `FEHLER`, siehe die Zeilen darunter im Log.
+
 ## Fehlerbehebung
 
 Immer aus **`C:\Spritradar`** starten (nicht aus `C:\` oder `C:\Windows`):
