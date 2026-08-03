@@ -20,6 +20,9 @@ build/
 *.key
 windows/secrets.bat
 
+# Lokale Laufzeit-Protokolle vom Mini-PC
+logs/
+
 # OS / Editor
 .DS_Store
 Thumbs.db

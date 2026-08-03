@@ -1,34 +1,44 @@
 @echo off
 REM Sendet die tägliche Telegram-Nachricht (Windows Task Scheduler, z. B. 07:30).
 REM Beim Doppelklick bleibt das Fenster bei Fehlern offen. Im Task Scheduler
-REM als Argument  quiet  angeben, damit nichts auf eine Eingabe wartet.
+REM als Argument  quiet  angeben: dann laeuft es lautlos und schreibt ins Log.
+setlocal
 cd /d "%~dp0.."
+if not exist logs mkdir logs
+set "LOG=logs\spritradar.log"
+echo [%date% %time%] daily : Start>> "%LOG%"
 
 if not exist "%~dp0secrets.bat" (
+  echo [%date% %time%] daily : FEHLER - windows\secrets.bat fehlt>> "%LOG%"
   echo [FEHLER] windows\secrets.bat fehlt.
   echo          Loesung:  copy windows\secrets.example.bat windows\secrets.bat
   echo          danach die Keys darin eintragen.
-  echo          Tipp: Wenn du die Datei mit Notepad angelegt hast, heisst sie
-  echo          evtl. secrets.bat.txt - dann umbenennen.
-  if "%~1"=="" pause
+  if not "%~1"=="quiet" pause
   exit /b 1
 )
 call "%~dp0secrets.bat"
 
 if not exist ".venv\Scripts\python.exe" (
-  echo [FEHLER] Python-Umgebung fehlt.
-  echo          Loesung:  py -m venv .venv
-  if "%~1"=="" pause
+  echo [%date% %time%] daily : FEHLER - .venv fehlt>> "%LOG%"
+  echo [FEHLER] Python-Umgebung fehlt.  Loesung:  py -m venv .venv
+  if not "%~1"=="quiet" pause
   exit /b 1
 )
 
 set FORCE=1
-".venv\Scripts\python.exe" -m spritradar.main
+if "%~1"=="quiet" (
+  ".venv\Scripts\python.exe" -m spritradar.main>> "%LOG%" 2>&1
+) else (
+  ".venv\Scripts\python.exe" -m spritradar.main
+)
+
 if errorlevel 1 (
+  echo [%date% %time%] daily : FEHLER beim Senden>> "%LOG%"
   echo.
-  echo [FEHLER] Lauf fehlgeschlagen - siehe Meldung oben.
+  echo [FEHLER] Lauf fehlgeschlagen - siehe Meldung oben bzw. logs\spritradar.log
   echo          Bei "No module named ...":
   echo          .venv\Scripts\python.exe -m pip install -r requirements.txt
-  if "%~1"=="" pause
+  if not "%~1"=="quiet" pause
   exit /b 1
 )
+echo [%date% %time%] daily : OK - Nachricht gesendet>> "%LOG%"
