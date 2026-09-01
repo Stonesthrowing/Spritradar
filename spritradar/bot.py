@@ -1,14 +1,18 @@
-"""Telegram-Poller: antwortet auf „Graphs" mit den drei Tagesverlauf-Charts.
+"""Telegram-Poller: reagiert auf die Befehle im Chat.
 
-Läuft per GitHub Actions alle paar Minuten (GitHub kann nicht dauerhaft lauschen),
-holt neue Nachrichten via getUpdates und schickt bei „Graphs" das Chart-PNG zurück.
-Der Update-Offset wird in data/bot_state.json gemerkt, damit nichts doppelt läuft.
+    go      -> aktueller Tankplan (dieselbe Nachricht wie der Tageslauf)
+    graphs  -> drei Tagesverlauf-Charts (gestern / heute / morgen)
+
+Es gibt keinen Tageszeitplan mehr: Die Nachricht kommt nur noch auf „go".
+Der Poller holt neue Nachrichten via getUpdates; der Update-Offset liegt in
+data/bot_state.json, damit ein Befehl nicht doppelt beantwortet wird.
 """
 
 from __future__ import annotations
 
 import datetime as dt
 import json
+import re
 import tempfile
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -16,11 +20,15 @@ from zoneinfo import ZoneInfo
 from . import charts
 from . import history as hist
 from . import intraday as itd
+from . import main as main_mod
 from . import telegram
 from .config import REPO_ROOT, load_config, load_secrets
 
 STATE_PATH = REPO_ROOT / "data" / "bot_state.json"
-TRIGGER = "graph"  # matcht "Graphs", "/graphs", "graph" …
+CHART_TRIGGER = "graph"  # matcht "Graphs", "/graphs", "graph" …
+PLAN_TRIGGER = "go"      # matcht "go", "/go", "Go" – als ganzes Wort
+# Ganzes Wort, damit "google", "Bogen" o. Ä. den Tankplan nicht auslösen.
+_WORD_GO = re.compile(rf"(?<!\w){PLAN_TRIGGER}(?!\w)")
 CAPTION_BASE = (
     "⛽ Tagesverlauf Super E10 – gestern / heute / morgen.\n"
     "Durchgezogen = gemessen, gestrichelt = Prognose."
@@ -64,23 +72,48 @@ def run() -> int:
 
     max_id = offset - 1 if offset else 0
     handled = 0
+    history = None
     for upd in updates:
         max_id = max(max_id, int(upd.get("update_id", 0)))
         msg = upd.get("message") or upd.get("edited_message") or {}
         text = (msg.get("text") or "").strip().lower()
         chat_id = (msg.get("chat") or {}).get("id")
-        if not chat_id or TRIGGER not in text:
+        if not chat_id:
             continue
-        try:
-            png, caption = _make_charts(cfg, dt.datetime.now(tz))
-            telegram.send_photo(secrets.telegram_bot_token, chat_id, png, caption)
-            handled += 1
-            print(f"[bot] Charts an Chat {chat_id} gesendet.")
-        except Exception as exc:
-            print(f"[bot] Fehler beim Senden an {chat_id}: {exc}")
 
+        if CHART_TRIGGER in text:
+            try:
+                png, caption = _make_charts(cfg, dt.datetime.now(tz))
+                telegram.send_photo(secrets.telegram_bot_token, chat_id, png, caption)
+                handled += 1
+                print(f"[bot] Charts an Chat {chat_id} gesendet.")
+            except Exception as exc:
+                print(f"[bot] Fehler beim Chart-Versand an {chat_id}: {exc}")
+        elif _WORD_GO.search(text):
+            try:
+                # Historie einmal laden und über alle „go" hinweg fortschreiben.
+                if history is None:
+                    history = hist.load_history()
+                now_local = dt.datetime.now(tz)
+                report = main_mod.build_report(cfg, secrets, now_local, history)
+                if report is None:
+                    telegram.send_message(
+                        secrets.telegram_bot_token,
+                        chat_id,
+                        "Gerade keine Preisdaten verfügbar – bitte gleich nochmal „go\" senden.",
+                    )
+                else:
+                    telegram.send_message(secrets.telegram_bot_token, chat_id, report)
+                    history["last_sent_date"] = now_local.date().isoformat()
+                    handled += 1
+                    print(f"[bot] Tankplan an Chat {chat_id} gesendet.")
+            except Exception as exc:
+                print(f"[bot] Fehler beim Tankplan-Versand an {chat_id}: {exc}")
+
+    if history is not None:
+        hist.save_history(history)
     _save_offset(max_id + 1)
-    print(f"[bot] {len(updates)} Update(s) verarbeitet, {handled} Chart-Antwort(en).")
+    print(f"[bot] {len(updates)} Update(s) verarbeitet, {handled} Antwort(en).")
     return 0
 
 

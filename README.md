@@ -1,8 +1,11 @@
 # Spritradar
 
-Täglich früh eine Telegram-Nachricht mit klarer Handlungsempfehlung – **WARTEN**
-oder **JETZT TANKEN** – für **Super E10** an zwei Standorten (Zuhause & Arbeit),
-inkl. bestem Zeitfenster heute und transparentem 0–100-Score je Fenster.
+Auf Zuruf eine Telegram-Nachricht mit klarer Handlungsempfehlung – **WARTEN**
+oder **JETZT TANKEN** – für **Super E10** in Krefeld, inkl. bestem Zeitfenster
+heute und transparentem 0–100-Score je Fenster.
+
+**Kein Zeitplan:** Du schreibst dem Bot `go`, er antwortet. `graphs` liefert
+zusätzlich die drei Tagesverlauf-Charts.
 
 **12-Uhr-Regime (KPAnG, seit 01.04.2026):** Tankstellen dürfen Preise nur noch
 **1× täglich um 12:00 erhöhen**, Senkungen jederzeit. Daraus folgt hart: vor 12 Uhr
@@ -13,9 +16,9 @@ zum Abendtief. Das Modell ist genau darauf ausgerichtet.
 ## Wie es funktioniert
 
 ```
-Mini-PC (Task Scheduler, morgens)
+"go" im Telegram-Chat → Poller auf dem Mini-PC (alle 2 Min)
         │
-        ├─ Tankerkönig-API   → aktuelle E10-Preise je Standort + Umkreis (Markt-Median)
+        ├─ Tankerkönig-API   → aktuelle E10-Preise + Umkreis (Markt-Median)
         ├─ data/intraday.json→ selbst gesammelter Tagesverlauf (12-Uhr-Sprung, Abendtief)
         ├─ Regime-Modell     → bestes Fenster heute + Score + WARTEN/TANKEN (transparent)
         └─ Telegram-Bot      → Tankplan-Nachricht an dich
@@ -31,28 +34,23 @@ Je mehr eigene Daten, desto schärfer (stationsspezifisch ab ~4 Wochen).
   (kostenlos, kein Key). Die Bewertung „heute vollmachen vs. warten" macht optional
   Claude Haiku (geringe Kosten, `ANTHROPIC_API_KEY`); ohne Key greift eine kostenlose
   Stichwort-Heuristik.
-- **Historie:** Die freie API liefert nur aktuelle Preise. Deshalb speichert der
-  Workflow jeden Morgen den günstigsten Preis in `data/history.json` und committet
-  sie zurück. Der Score wird mit jedem Tag aussagekräftiger (ab ~4 Tagen Historie).
-- **Zeitplan:** läuft über **GitHub Actions** – ohne eigenen Rechner, ohne
-  Einrichtung. GitHubs Scheduler startet geplante Läufe hier messbar ~1h50–2h20
-  zu spät (ausgewertet über 13.–24.07.2026). Statt dagegen anzukämpfen, ist der
-  Verzug **eingerechnet**: Der erste Cron liegt 03:25 UTC, landet also gegen
-  07:15 Ortszeit. Mehrere spätere Crons sind das Sicherheitsnetz; gesendet wird
-  per atomarem Git-Claim genau einmal. **Erwartete Ankunft: 7:15–8:45 Uhr**,
-  im schlechtesten Fall bis ~12:15 – aber sie kommt.
-- **Exakt 7:30** geht nur mit einem eigenen, dauerhaft laufenden Rechner:
-  [`windows/README.md`](windows/README.md) beschreibt die Einrichtung über den
-  Windows Task Scheduler. Optional – wer das nutzt, schaltet den GitHub-Zeitplan
-  ab (dort beschrieben).
+- **Historie:** Die freie API liefert nur aktuelle Preise. Deshalb speichert jeder
+  `go`-Lauf den günstigsten Preis in `data/history.json`, und ein stündlicher
+  stiller Sammler schreibt Momentaufnahmen nach `data/intraday.json`. Der Score
+  wird mit jedem Tag aussagekräftiger (ab ~4 Tagen Historie).
+- **Zeitplan:** keiner. Es gibt keine geplanten Läufe mehr – weder hier noch bei
+  GitHub. Alle Workflows in `.github/workflows/` sind nur noch manuell
+  auslösbar (`Run workflow`) und dienen als Notnagel.
+- **Was laufen muss:** ein Poller, der `go` überhaupt hört. Der läuft auf dem
+  Mini-PC (Windows Task Scheduler, alle 2 Minuten) – Antwort in Sekunden.
+  Einrichtung mit einem Doppelklick: **[`windows/README.md`](windows/README.md)**.
 
 ## Einrichtung
 
-Nichts zu tun – der Zeitplan in `.github/workflows/daily.yml` läuft von selbst,
-sobald die Secrets hinterlegt sind (siehe unten). Optional für den
-Minutengenauen Versand: **[`windows/README.md`](windows/README.md)**
-(Python installieren, Repo klonen, `secrets.bat` ausfüllen, drei Task-Scheduler-Aufgaben:
-Daily 07:30, Collect stündlich, Bot alle 2 Min).
+Auf dem Mini-PC: Repo klonen, `windows\secrets.bat` ausfüllen, dann
+`windows\install-tasks.bat` doppelklicken – das legt die beiden Aufgaben an
+(Bot alle 2 Min, Collect stündlich). Details:
+**[`windows/README.md`](windows/README.md)**.
 
 ## Manueller Betrieb über GitHub (optional / Test)
 
@@ -73,11 +71,12 @@ Daily 07:30, Collect stündlich, Bot alle 2 Min).
 
 ### 3. Manuell auslösen
 Alle Workflows haben nur noch `workflow_dispatch` (kein Zeitplan mehr):
-`Actions → Spritradar Daily → Run workflow` sendet sofort eine Nachricht.
+`Actions → Spritradar Tankplan (manuell) → Run workflow` sendet sofort eine
+Nachricht – der Notnagel, falls der Mini-PC aus ist.
 
-## Charts: „Graphs" im Telegram-Chat
-Schreib dem Bot **`Graphs`** – er antwortet mit drei Charts (gestern / heute / morgen),
-je Standort der Super-E10-Tagesverlauf über die Uhrzeit.
+## Charts: „graphs" im Telegram-Chat
+Schreib dem Bot **`graphs`** – er antwortet mit drei Charts (gestern / heute / morgen),
+dem Super-E10-Tagesverlauf über die Uhrzeit.
 
 - **Durchgezogen = gemessen**, **gestrichelt = Prognose** (typisches Tagesprofil ans
   aktuelle Preisniveau angelegt). „Heute" ist bis zur aktuellen Uhrzeit gemessen,
@@ -86,13 +85,14 @@ je Standort der Super-E10-Tagesverlauf über die Uhrzeit.
 - **Datenbasis:** der **stündliche** Sammel-Job (`spritradar.collect`, Task auf dem
   Mini-PC) schreibt echte Preise in `data/intraday.json`. In den ersten ein bis zwei
   Tagen sind die Kurven noch modelliert; danach werden gestern/heute real.
-- **Antwortzeit:** Der `Graphs`-Poller (`spritradar.bot`) läuft lokal alle **2 Minuten**
+- **Antwortzeit:** Der Poller (`spritradar.bot`) läuft lokal alle **2 Minuten**
   → Antwort fast sofort. Intervall im Task Scheduler anpassbar.
 
 ## Standorte & Einstellungen anpassen
 Alles in `config.json`:
 - **Standorte:** `lat`/`lng` (Kartenkoordinaten), `radius_km` (Suchradius). Aktuell
-  abgedeckt: **47798 Krefeld** und **47506 Neukirchen-Vluyn**.
+  abgedeckt: **47798 Krefeld**. Weitere Standorte lassen sich als zusätzliche
+  Einträge in `locations` ergänzen.
 - **Bevorzugte Tankstelle** je Standort unter `preferred` (Marke/Straße/Ort) – wird
   zusätzlich zur günstigsten mit Aufpreis angezeigt.
 - **Tägliche Fixwerte** unter `daily_tips` (`best_time`, `best_weekday`) – erscheinen

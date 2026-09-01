@@ -4,12 +4,9 @@ name: Spritradar Collect
 # Läuft nur auf dem Default-Branch (wie alle geplanten Workflows).
 
 on:
-  # Stündlich sammeln. Der Zeitstempel wird beim Abruf gesetzt, ein paar Minuten
-  # GitHub-Verzug schaden hier also nicht (anders als bei der Morgennachricht).
-  # Doppelte Snapshots derselben Stunde überschreiben sich, ein parallel
-  # laufender Mini-PC-Task wäre also unkritisch.
-  schedule:
-    - cron: "5 4-21 * * *"
+  # KEIN Zeitplan: Das stündliche Sammeln läuft auf dem Mini-PC
+  # (windows/run-collect.bat, Task „Spritradar Collect"). Hier nur manuell,
+  # falls der Mini-PC mal aus war und du eine Momentaufnahme nachholen willst.
   workflow_dispatch:
 
 permissions:

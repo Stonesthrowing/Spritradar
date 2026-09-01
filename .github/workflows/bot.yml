@@ -5,12 +5,10 @@ name: Spritradar Bot
 # Intervall bei Bedarf verkürzen (Achtung: verbraucht mehr Actions-Minuten).
 
 on:
-  # Poller im Stundentakt. GitHub kann nicht dauerhaft lauschen und liefert
-  # geplante Läufe zudem verzögert – die Antwort auf "Graphs" kommt darum erst
-  # nach bis zu ~2 h. Wer sie sofort will, startet diesen Workflow manuell
-  # ("Run workflow") oder nutzt den Mini-PC-Task (windows/run-bot.bat).
-  schedule:
-    - cron: "35 4-21 * * *"
+  # KEIN Zeitplan: Das Zuhören auf „go"/„graphs" läuft auf dem Mini-PC
+  # (windows/run-bot.bat, Task „Spritradar Bot", alle 2 Minuten) – dort kommt
+  # die Antwort in Sekunden. Über GitHub käme sie wegen des Scheduler-Verzugs
+  # erst nach bis zu ~2 h. Hier nur manuell als Notnagel.
   workflow_dispatch:
 
 permissions:

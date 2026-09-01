@@ -20,8 +20,8 @@
       "name": "Zuhause – Krefeld",
       "plz": "47798",
       "emoji": "🏠",
-      "lat": 51.3350,
-      "lng": 6.5850,
+      "lat": 51.335,
+      "lng": 6.585,
       "radius_km": 4.0,
       "preferred": [
         {
@@ -30,23 +30,6 @@
           "street": "Oranierring",
           "house_number": "51",
           "place": "Krefeld"
-        }
-      ]
-    },
-    {
-      "name": "Arbeit – Neukirchen-Vluyn",
-      "plz": "47506",
-      "emoji": "🏢",
-      "lat": 51.4450,
-      "lng": 6.5400,
-      "radius_km": 4.0,
-      "preferred": [
-        {
-          "label": "PM Andreas-Bräm-Str. 32B",
-          "brand": "PM",
-          "street": "Andreas-Bräm",
-          "house_number": "32B",
-          "place": "Neukirchen-Vluyn"
         }
       ]
     }

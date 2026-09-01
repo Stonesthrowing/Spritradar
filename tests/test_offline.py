@@ -268,6 +268,28 @@ def test_message_builds():
     print("\n" + msg)
 
 
+def test_bot_trigger_erkennung():
+    """„go" nur als ganzes Wort; „graphs" darf nicht den Tankplan auslösen."""
+    from spritradar import bot
+
+    for text in ("go", "/go", "Go", "  go  ", "go bitte"):
+        assert bot._WORD_GO.search(text.lower()), text
+    for text in ("google", "bogen", "morgen", "ego", "graphs", "/graphs"):
+        assert not bot._WORD_GO.search(text.lower()), text
+
+    # Charts haben Vorrang und schlucken „graphs" nicht in den go-Zweig.
+    assert bot.CHART_TRIGGER in "graphs"
+    assert bot.CHART_TRIGGER not in "go"
+
+
+def test_nur_ein_standort_konfiguriert():
+    """Der Arbeitsort ist raus – die Nachricht soll nur Krefeld zeigen."""
+    from spritradar.config import load_config
+
+    cfg = load_config()
+    assert [loc.plz for loc in cfg.locations] == ["47798"]
+
+
 if __name__ == "__main__":
     import sys
     import traceback
