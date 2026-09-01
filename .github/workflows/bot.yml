@@ -5,8 +5,12 @@ name: Spritradar Bot
 # Intervall bei Bedarf verkürzen (Achtung: verbraucht mehr Actions-Minuten).
 
 on:
-  # Der "Graphs"-Poller läuft jetzt lokal auf dem Mini-PC (kurzer Task-Intervall
-  # -> fast sofortige Antwort). GitHub-Zeitplan entfernt. Nur noch manuell.
+  # Poller im Stundentakt. GitHub kann nicht dauerhaft lauschen und liefert
+  # geplante Läufe zudem verzögert – die Antwort auf "Graphs" kommt darum erst
+  # nach bis zu ~2 h. Wer sie sofort will, startet diesen Workflow manuell
+  # ("Run workflow") oder nutzt den Mini-PC-Task (windows/run-bot.bat).
+  schedule:
+    - cron: "35 4-21 * * *"
   workflow_dispatch:
 
 permissions:

@@ -72,8 +72,8 @@ class Config:
     min_history_for_score: int = 4
     # Sendefenster (lokale Zeit): erster Lauf ab `send_after` sendet, spätere
     # werden per Tages-Sperre blockiert. `send_until` verhindert Spät-Sendungen.
-    send_after: dt.time = dt.time(7, 25)
-    send_until: dt.time = dt.time(10, 30)
+    send_after: dt.time = dt.time(7, 0)
+    send_until: dt.time = dt.time(14, 0)
     locations: list[Location] = field(default_factory=list)
     daily_tips: DailyTips = field(default_factory=DailyTips)
     news: NewsConfig = field(default_factory=NewsConfig)
@@ -111,8 +111,8 @@ def load_config(path: Path | str = DEFAULT_CONFIG_PATH) -> Config:
         timezone=data.get("timezone", "Europe/Berlin"),
         history_window_days=int(data.get("history_window_days", 14)),
         min_history_for_score=int(data.get("min_history_for_score", 4)),
-        send_after=_parse_hhmm(data.get("send_after", "07:25"), dt.time(7, 25)),
-        send_until=_parse_hhmm(data.get("send_until", "10:30"), dt.time(10, 30)),
+        send_after=_parse_hhmm(data.get("send_after", "07:00"), dt.time(7, 0)),
+        send_until=_parse_hhmm(data.get("send_until", "14:00"), dt.time(14, 0)),
         locations=locations,
         daily_tips=DailyTips(
             best_time=tips.get("best_time", "18–19 Uhr"),

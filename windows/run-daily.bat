@@ -25,10 +25,14 @@ if not exist ".venv\Scripts\python.exe" (
   exit /b 1
 )
 
-set FORCE=1
+REM FORCE nur beim Doppelklick (Test): dann wird sofort gesendet, egal welche
+REM Uhrzeit. Der geplante Task ("quiet") laeuft OHNE FORCE und haelt sich an
+REM Sendefenster + Tages-Dedup aus config.json - so gibt es keine zweite
+REM Nachricht, falls parallel noch der GitHub-Zeitplan aktiv ist.
 if "%~1"=="quiet" (
   ".venv\Scripts\python.exe" -m spritradar.main>> "%LOG%" 2>&1
 ) else (
+  set FORCE=1
   ".venv\Scripts\python.exe" -m spritradar.main
 )
 

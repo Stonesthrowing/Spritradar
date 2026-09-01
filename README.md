@@ -34,15 +34,23 @@ Je mehr eigene Daten, desto schärfer (stationsspezifisch ab ~4 Wochen).
 - **Historie:** Die freie API liefert nur aktuelle Preise. Deshalb speichert der
   Workflow jeden Morgen den günstigsten Preis in `data/history.json` und committet
   sie zurück. Der Score wird mit jedem Tag aussagekräftiger (ab ~4 Tagen Historie).
-- **Zeitplan:** läuft **lokal auf einem Mini-PC** (Windows Task Scheduler), weil
-  GitHubs geplante Läufe auf dem Gratis-Tarif regelmäßig ~2 h zu spät kamen. Der
-  Task Scheduler ist pünktlich → Nachricht ~07:30. Einrichtung: siehe
-  [`windows/README.md`](windows/README.md). Die GitHub-Workflows bleiben als
-  **manueller Auslöser** (`Run workflow`) erhalten.
+- **Zeitplan:** läuft über **GitHub Actions** – ohne eigenen Rechner, ohne
+  Einrichtung. GitHubs Scheduler startet geplante Läufe hier messbar ~1h50–2h20
+  zu spät (ausgewertet über 13.–24.07.2026). Statt dagegen anzukämpfen, ist der
+  Verzug **eingerechnet**: Der erste Cron liegt 03:25 UTC, landet also gegen
+  07:15 Ortszeit. Mehrere spätere Crons sind das Sicherheitsnetz; gesendet wird
+  per atomarem Git-Claim genau einmal. **Erwartete Ankunft: 7:15–8:45 Uhr**,
+  im schlechtesten Fall bis ~12:15 – aber sie kommt.
+- **Exakt 7:30** geht nur mit einem eigenen, dauerhaft laufenden Rechner:
+  [`windows/README.md`](windows/README.md) beschreibt die Einrichtung über den
+  Windows Task Scheduler. Optional – wer das nutzt, schaltet den GitHub-Zeitplan
+  ab (dort beschrieben).
 
-## Einrichtung (Mini-PC)
+## Einrichtung
 
-Die vollständige Schritt-für-Schritt-Anleitung steht in **[`windows/README.md`](windows/README.md)**
+Nichts zu tun – der Zeitplan in `.github/workflows/daily.yml` läuft von selbst,
+sobald die Secrets hinterlegt sind (siehe unten). Optional für den
+Minutengenauen Versand: **[`windows/README.md`](windows/README.md)**
 (Python installieren, Repo klonen, `secrets.bat` ausfüllen, drei Task-Scheduler-Aufgaben:
 Daily 07:30, Collect stündlich, Bot alle 2 Min).
 
