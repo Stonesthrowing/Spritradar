@@ -8,10 +8,10 @@ echo  SPRITRADAR - STATUS
 echo ============================================================
 echo.
 echo --- Geplante Aufgaben ------------------------------------
-for %%T in ("Spritradar Daily" "Spritradar Collect" "Spritradar Bot") do (
+for %%T in ("Spritradar Bot" "Spritradar Collect") do (
   schtasks /Query /TN %%T /FO LIST /V >nul 2>&1
   if errorlevel 1 (
-    echo   %%T : NICHT ANGELEGT  ^<-- deshalb laeuft nichts automatisch
+    echo   %%T : NICHT ANGELEGT  ^<-- windows\install-tasks.bat ausfuehren
   ) else (
     echo   %%T :
     schtasks /Query /TN %%T /FO LIST /V | findstr /I /C:"Status" /C:"Letzte Laufzeit" /C:"Naechste Laufzeit" /C:"Nächste Laufzeit" /C:"Letztes Ergebnis" /C:"Last Run Time" /C:"Next Run Time" /C:"Last Result"

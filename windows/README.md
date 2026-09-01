@@ -1,35 +1,30 @@
 # Spritradar auf dem Mini-PC (Windows)
 
-> **Status:** Der Versand läuft aktuell wieder über **GitHub Actions** (läuft von
-> allein, ohne Mini-PC). Die Nachricht kommt damit meist zwischen **7:15 und 8:45**
-> statt exakt 7:30 – GitHubs Scheduler startet geplante Läufe rund 2 h zu spät,
-> das ist eingerechnet, aber nicht auf die Minute steuerbar.
->
-> Diese Anleitung ist der **optionale Weg zu exakt 7:30**. Sie ist erst nötig,
-> wenn dir die Spanne oben nicht reicht.
+Spritradar schickt **keine Nachricht mehr von allein**. Der Tankplan kommt nur
+noch auf Zuruf: Du schreibst dem Bot in Telegram **`go`**, er antwortet.
 
-Der Windows Task Scheduler startet pünktlich auf die Minute, unabhängig von
-GitHub. Der `Graphs`-Bot antwortet dadurch außerdem fast sofort statt erst nach
-bis zu zwei Stunden.
+Damit „go" gehört wird, muss auf dem Mini-PC ein kleiner Poller laufen — der
+fragt alle 2 Minuten bei Telegram nach. Genau das richten diese Skripte ein.
+GitHub hat **keinen Zeitplan mehr**; alle Workflows dort sind nur noch manuell.
 
-Alles bleibt lokal (Daten in `data\*.json`).
+| Befehl im Chat | Antwort |
+| --- | --- |
+| `go` | aktueller Tankplan für Krefeld (Favorit JET Oranierring + günstigste vor Ort) |
+| `graphs` | drei Tagesverlauf-Charts (gestern / heute / morgen) |
 
-## Wenn beides läuft: keine doppelte Nachricht
+Zwei Aufgaben laufen dafür im Hintergrund:
 
-Der geplante Task ruft `run-daily.bat quiet` auf – **ohne** `FORCE`. Das Skript
-hält sich dann an Sendefenster und Tages-Dedup aus `config.json` und sendet pro
-Tag nur einmal. Da der Mini-PC um 7:30 dran ist und GitHub frühestens gegen 7:15
-startet, kann es an einzelnen Tagen trotzdem zu zwei Nachrichten kommen.
+| Aufgabe | Takt | Zweck |
+| --- | --- | --- |
+| `Spritradar Bot` | alle 2 Min | hört auf `go` / `graphs` |
+| `Spritradar Collect` | stündlich | stille Preis-Momentaufnahme (sendet nichts) |
 
-Wenn der Mini-PC-Task zuverlässig läuft, deshalb den GitHub-Zeitplan abschalten:
-in `.github/workflows/daily.yml` (und optional `collect.yml`, `bot.yml`) den
-Block `schedule:` samt `cron:`-Zeilen auskommentieren, sodass nur noch
-`workflow_dispatch:` übrig bleibt.
+Das Sammeln kostet **keine Claude-Tokens** — es ruft nur Tankerkönig ab. Tokens
+fallen nur bei `go` an (eine kurze News-Analyse). Ohne das Sammeln fällt die
+Tagesverlauf-Prognose auf ein Standardprofil zurück und die Charts zeigen für
+neue Tage nichts Gemessenes.
 
-Beim **Doppelklick** auf `run-daily.bat` wird dagegen absichtlich sofort gesendet
-(FORCE) – das ist der Testweg.
-
-## Einmalige Einrichtung
+## Einrichtung
 
 ### 1. Python installieren
 [python.org/downloads](https://www.python.org/downloads/) → Python 3.12 →
@@ -46,144 +41,82 @@ git clone https://github.com/Stonesthrowing/Spritradar.git
 ```
 → Ordner `C:\Spritradar`. (Alternativ „Code → Download ZIP" auf GitHub und nach `C:\Spritradar` entpacken.)
 
-### 3. Abhängigkeiten installieren
-```
-cd C:\Spritradar
-py -m venv .venv
-.venv\Scripts\python -m pip install --upgrade pip
-.venv\Scripts\pip install -r requirements.txt
-```
-
-### 4. Secrets eintragen
+### 3. Secrets eintragen
 Am sichersten in der Eingabeaufforderung (vermeidet die `.txt`-Falle):
 ```
 cd C:\Spritradar
 copy windows\secrets.example.bat windows\secrets.bat
 notepad windows\secrets.bat
 ```
-Werte eintragen (dieselben wie in den GitHub-Secrets), speichern. `secrets.bat`
-bleibt lokal (steht in `.gitignore`).
+Werte eintragen, speichern. `secrets.bat` bleibt lokal (steht in `.gitignore`).
 
 > ⚠️ **Häufigster Fehler:** Legt man die Datei per Rechtsklick/Notepad an, heißt sie
 > oft in Wirklichkeit `secrets.bat.txt` (Windows blendet bekannte Endungen aus) – dann
 > meldet das Skript „secrets.bat fehlt". Prüfen mit `dir windows` in der
 > Eingabeaufforderung; ggf. `ren windows\secrets.bat.txt secrets.bat`.
 
-### 5. Testen (Doppelklick)
-- `windows\run-daily.bat` → es sollte eine **Telegram-Nachricht** kommen.
-- `windows\run-collect.bat` → schreibt einen Messpunkt in `data\intraday.json`.
-- Dem Bot in Telegram `Graphs` schicken, dann `windows\run-bot.bat` → **Charts** kommen.
+### 4. Doppelklick auf `windows\install-tasks.bat`
 
-## Task Scheduler (Aufgabenplanung) einrichten
+Das erledigt den Rest allein: Python-Umgebung anlegen, Abhängigkeiten
+installieren, beide Aufgaben registrieren (und eine alte „Spritradar Daily"
+entfernen, die es nicht mehr braucht). Das Fenster bleibt offen und sagt bei
+jedem Schritt, ob er geklappt hat.
 
-> ‼️ **Ohne diese Tasks passiert nichts automatisch** – `run-daily.bat` läuft dann nur,
-> wenn du es von Hand startest. Genau das ist der häufigste Grund für „die Nachricht
-> kommt morgens nicht".
+Danach in Telegram **`go`** schicken — die Antwort kommt innerhalb von ~2 Minuten.
 
-### Schnellweg: drei Befehle (empfohlen)
+> Meldet das Skript, die Aufgabe lasse sich nicht anlegen: per Rechtsklick →
+> **„Als Administrator ausführen"** starten.
 
-Eingabeaufforderung **als Administrator** öffnen (Start → „cmd" tippen → Rechtsklick →
-„Als Administrator ausführen") und einfügen:
-
-```
-schtasks /Create /F /TN "Spritradar Daily"   /TR "C:\Spritradar\windows\run-daily.bat quiet"   /SC DAILY  /ST 07:30
-schtasks /Create /F /TN "Spritradar Collect" /TR "C:\Spritradar\windows\run-collect.bat quiet" /SC HOURLY /ST 00:05
-schtasks /Create /F /TN "Spritradar Bot"     /TR "C:\Spritradar\windows\run-bot.bat quiet"     /SC MINUTE /MO 2
-```
-
-Nur werktags (Mo–Fr) statt täglich – erste Zeile stattdessen so:
-```
-schtasks /Create /F /TN "Spritradar Daily" /TR "C:\Spritradar\windows\run-daily.bat quiet" /SC WEEKLY /D MON,TUE,WED,THU,FRI /ST 07:30
-```
-
-**Sofort testen** (schickt eine Nachricht):
-```
-schtasks /Run /TN "Spritradar Daily"
-```
-
-**Kontrollieren** (zeigt letzte/nächste Laufzeit und letztes Ergebnis; `0` = ok):
-```
-schtasks /Query /TN "Spritradar Daily" /V /FO LIST
-```
-
-Die so angelegten Tasks laufen, **solange der Benutzer angemeldet ist**. Wenn der
-Mini-PC dauerhaft angemeldet bleibt, passt das. Sonst in der Aufgabenplanung beim
+Die Aufgaben laufen, **solange der Benutzer angemeldet ist**. Wenn der Mini-PC
+dauerhaft angemeldet durchläuft, passt das. Sonst in der Aufgabenplanung beim
 Task unter „Allgemein" auf **„Unabhängig von der Benutzeranmeldung ausführen"**
 umstellen (Windows fragt einmal das Kontopasswort ab).
 
-### Alternative: über die Oberfläche
+### Von Hand statt per Skript
 
-`Win`-Taste → „Aufgabenplanung" öffnen → rechts **„Aufgabe erstellen…"** (nicht „einfache Aufgabe").
+Falls du die Aufgaben lieber selbst anlegst — Eingabeaufforderung als
+Administrator:
+```
+schtasks /Create /F /TN "Spritradar Bot"     /TR "C:\Spritradar\windows\run-bot.bat quiet"     /SC MINUTE /MO 2
+schtasks /Create /F /TN "Spritradar Collect" /TR "C:\Spritradar\windows\run-collect.bat quiet" /SC HOURLY /ST 00:05
+```
 
-> In allen drei Tasks bei „Argumente hinzufügen" **`quiet`** eintragen. Dann wartet
-> das Skript im Fehlerfall nicht auf einen Tastendruck (beim Doppelklick bleibt das
-> Fenster dagegen offen, damit du die Meldung lesen kannst).
+## Testen ohne Aufgaben
 
-### Task „Spritradar Daily" (die 7:30-Nachricht)
-- **Trigger:** Täglich, Start **07:30**.
-- **Aktion:** Programm/Skript = `C:\Spritradar\windows\run-daily.bat`, Argumente = `quiet`
-- **Bedingungen:** „Computer für die Ausführung reaktivieren" ankreuzen (falls der PC schläft).
-- **Einstellungen:** „Aufgabe so schnell wie möglich nach verpasstem Start ausführen" ankreuzen.
+- `windows\run-bot.bat` (Doppelklick) → arbeitet alle offenen Chat-Befehle ab.
+  Also erst in Telegram `go` schicken, dann das Skript starten.
+- `windows\run-collect.bat` → schreibt einen Messpunkt in `data\intraday.json`.
+- `windows\run-daily.bat` → schickt den Tankplan sofort, ohne Umweg über den Chat.
 
-### Task „Spritradar Collect" (stündlich sammeln)
-- **Trigger:** Täglich 00:00 → „Wiederholen alle: **1 Stunde**", „für die Dauer von: **Unbegrenzt**".
-- **Aktion:** `C:\Spritradar\windows\run-collect.bat`, Argumente = `quiet`
+## Status prüfen
 
-### Task „Spritradar Bot" (schnelle Graphs-Antwort)
-- **Trigger:** Täglich 00:00 → „Wiederholen alle: **2 Minuten**", „für die Dauer von: **Unbegrenzt**".
-- **Aktion:** `C:\Spritradar\windows\run-bot.bat`, Argumente = `quiet`
-
-**Tipp:** In jedem Task unter „Allgemein" die Option **„Unabhängig von der Benutzeranmeldung
-ausführen"** wählen, dann laufen die Skripte im Hintergrund ohne aufblitzendes Fenster
-(Windows fragt einmal dein Kontopasswort ab). Alternativ „Nur ausführen, wenn Benutzer
-angemeldet ist", wenn der Mini-PC ohnehin dauerhaft angemeldet bleibt.
-
-**Energie/Standby:** Damit der Daily-Task den PC aus dem Ruhezustand weckt:
-Systemsteuerung → Energieoptionen → Energiesparplan-Einstellungen → Erweitert →
-„Ruhezustand" → „Wecktimer zulassen" = **Aktiviert**.
+Doppelklick auf **`windows\status.bat`** – zeigt auf einen Blick:
+- ob die beiden Aufgaben überhaupt **angelegt** sind,
+- **letzte / nächste Laufzeit** und **letztes Ergebnis** (`0` = ok),
+- ob `secrets.bat` und die Python-Umgebung da sind,
+- die letzten Zeilen aus **`logs\spritradar.log`**.
 
 ## Updates einspielen
-Wenn hier im Repo etwas geändert wird:
 ```
 cd C:\Spritradar
 git pull
 .venv\Scripts\pip install -r requirements.txt
 ```
 
-## Uhrzeit anpassen
-Die 7:30 stehen im Task-Trigger (nicht mehr in der Config). Trigger-Zeit im Task
-Scheduler ändern – fertig.
-
-## Status prüfen (bei „die Nachricht kam nicht")
-
-Doppelklick auf **`windows\status.bat`** – zeigt auf einen Blick:
-- ob die drei Aufgaben überhaupt **angelegt** sind,
-- **letzte / nächste Laufzeit** und **letztes Ergebnis** (`0` = ok),
-- ob `secrets.bat` und die Python-Umgebung da sind,
-- die letzten Zeilen aus **`logs\spritradar.log`**.
-
-Jeder Lauf schreibt ins Log, z. B.:
-```
-[04.08.2026  7:30:02,11] daily : Start
-[04.08.2026  7:30:09,84] daily : OK - Nachricht gesendet
-```
-Steht dort morgens **gar nichts**, hat der Task nicht ausgelöst (meist: nicht angelegt).
-Steht dort `FEHLER`, siehe die Zeilen darunter im Log.
-
 ## Fehlerbehebung
 
 Immer aus **`C:\Spritradar`** starten (nicht aus `C:\` oder `C:\Windows`):
 ```
 cd C:\Spritradar
-windows\run-daily.bat
+windows\run-bot.bat
 ```
 
 | Meldung | Ursache & Lösung |
 | --- | --- |
 | `windows\secrets.bat fehlt` | Datei nicht vorhanden – oder sie heißt in Wirklichkeit `secrets.bat.txt`. Prüfen: `dir windows` · Umbenennen: `ren windows\secrets.bat.txt secrets.bat` |
 | `No module named 'requests'` (o. ä.) | Abhängigkeiten fehlen: `.venv\Scripts\python.exe -m pip install -r requirements.txt` |
-| `Python-Umgebung fehlt` | `py -m venv .venv`, danach die pip-Zeile oben |
+| `Python-Umgebung fehlt` | `windows\install-tasks.bat` legt sie an; manuell: `py -m venv .venv` |
 | `Das System kann den angegebenen Pfad nicht finden` | Falsches Verzeichnis – erst `cd C:\Spritradar` |
-| Morgens kommt **keine** Nachricht | Task fehlt oder schlägt fehl. Prüfen: `schtasks /Query /TN "Spritradar Daily" /V /FO LIST` – „Letztes Ergebnis" muss `0` sein. Fehlt der Task ganz, die drei `schtasks /Create`-Befehle oben ausführen. |
-| Task existiert, „Letztes Ergebnis" ≠ 0 | Skript bricht ab – einmal von Hand starten (`cd C:\Spritradar` + `windows\run-daily.bat`), Meldung lesen |
+| `go` bleibt unbeantwortet | Aufgabe fehlt oder schlägt fehl. `windows\status.bat` prüfen – „Letztes Ergebnis" muss `0` sein. Fehlt die Aufgabe, `windows\install-tasks.bat` ausführen. |
+| Aufgabe existiert, „Letztes Ergebnis" ≠ 0 | Skript bricht ab – einmal von Hand starten (`cd C:\Spritradar` + `windows\run-bot.bat`), Meldung lesen |
 | `"py" ist nicht als Befehl erkannt` | Python fehlt: von python.org installieren, dabei **„Add python.exe to PATH"** ankreuzen |

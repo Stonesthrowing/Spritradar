@@ -1,36 +1,10 @@
-name: Spritradar Daily
+name: Spritradar Tankplan (manuell)
 
-# WARUM DIESE KRUMMEN CRON-ZEITEN?
-#
-# GitHubs Scheduler ist "best effort" und startet geplante Läufe in diesem Repo
-# messbar verspätet. Auswertung der Läufe 13.–24.07.2026:
-#
-#   cron 05:30 UTC  ->  tatsächlicher Start 07:13–07:53 UTC   (Verzug 1h43–2h23)
-#   cron 06:30 UTC  ->  tatsächlicher Start 08:16–08:41 UTC   (Verzug 1h46–2h11)
-#
-# Der Verzug ist also erstaunlich konstant bei rund 1h50–2h. Statt gegen ihn
-# anzukämpfen, rechnen wir ihn ein: Der erste Cron liegt ~1h50 VOR der
-# Wunschzeit (03:25 UTC -> Start ~05:15 UTC = 07:15 Ortszeit im Sommer).
-#
-# Ein dichtes Raster (alle 5 Min) hat NICHT geholfen – GitHub hat davon nur
-# ~3 Läufe pro Tag ausgeliefert. Deshalb jetzt wenige, über mehrere Stunden
-# verteilte Einträge; die werden zuverlässiger zugestellt.
-#
-# Gesendet wird GENAU EINMAL: der erste Lauf, der im lokalen Sendefenster
-# (config.json: send_after/send_until) den atomaren Git-Claim
-# data/sent/<datum>.flag gewinnt. Alle weiteren sehen den Flag und überspringen.
-# Darum KEINE concurrency-Sperre – die würde die Nachzügler wegcanceln, die wir
-# als Sicherheitsnetz brauchen.
+# KEIN Zeitplan. Die Nachricht kommt auf Zuruf: „go" im Telegram-Chat
+# (beantwortet der Poller in bot.yml). Dieser Workflow ist nur der
+# Notnagel/Testweg über die GitHub-Oberfläche: Actions -> Run workflow.
 
 on:
-  schedule:
-    - cron: "25 3 * * *"   # ~07:15 Ortszeit (Sommer) – Wunschtermin
-    - cron: "55 3 * * *"   # ~07:45 Ortszeit (Sommer)
-    - cron: "25 4 * * *"   # ~08:15 Sommer / ~07:15 Winter
-    - cron: "55 4 * * *"   # ~08:45 Sommer / ~07:45 Winter
-    - cron: "25 5 * * *"   # Netz: auch bei pünktlichem Start im Fenster
-    - cron: "25 6 * * *"   # Netz
-    - cron: "25 8 * * *"   # letztes Netz – lieber spät als gar nicht
   workflow_dispatch:
 
 permissions:
@@ -44,81 +18,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Sendefenster aus config.json lesen
-        id: window
-        run: |
-          python3 - <<'PY' >> "$GITHUB_OUTPUT"
-          import json
-          cfg = json.load(open("config.json"))
-          print("after=" + cfg.get("send_after", "07:00"))
-          print("until=" + cfg.get("send_until", "14:00"))
-          PY
-
-      - name: Tages-Sperre (atomarer Claim)
-        id: claim
-        env:
-          AFTER: ${{ steps.window.outputs.after }}
-          UNTIL: ${{ steps.window.outputs.until }}
-        run: |
-          set -e
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "Manueller Start -> senden."
-            echo "send=true" >> "$GITHUB_OUTPUT"; exit 0
-          fi
-
-          now=$(TZ=Europe/Berlin date +%H:%M)
-          today=$(TZ=Europe/Berlin date +%F)
-          if [[ "$now" < "$AFTER" || "$now" > "$UNTIL" ]]; then
-            echo "$now außerhalb Sendefenster ($AFTER–$UNTIL) – überspringe."
-            echo "send=false" >> "$GITHUB_OUTPUT"; exit 0
-          fi
-
-          flag="data/sent/${today}.flag"
-          for attempt in 1 2 3 4 5; do
-            git fetch -q origin "$BRANCH"
-            git reset -q --hard "origin/$BRANCH"
-            if [ -f "$flag" ]; then
-              echo "Heute bereits von anderem Lauf geclaimt – überspringe."
-              echo "send=false" >> "$GITHUB_OUTPUT"; exit 0
-            fi
-            mkdir -p data/sent
-            find data/sent -name '*.flag' -mtime +5 -delete 2>/dev/null || true
-            echo "$now" > "$flag"
-            git add data/sent
-            git commit -q -m "chore: send-claim $today ($now)"
-            if git push -q origin "HEAD:$BRANCH"; then
-              echo "Claim gewonnen -> senden."
-              echo "send=true" >> "$GITHUB_OUTPUT"; exit 0
-            fi
-            echo "Push abgelehnt (Versuch $attempt), erneut prüfen…"; sleep 2
-          done
-          echo "Claim nach Retries fehlgeschlagen – überspringe (anderer Lauf sendet)."
-          echo "send=false" >> "$GITHUB_OUTPUT"
-
       - uses: actions/setup-python@v5
-        if: steps.claim.outputs.send == 'true'
         with:
           python-version: "3.12"
 
       - name: Abhängigkeiten installieren
-        if: steps.claim.outputs.send == 'true'
         run: pip install -r requirements.txt
 
       - name: Spritradar senden
-        if: steps.claim.outputs.send == 'true'
         env:
           TANKERKOENIG_API_KEY: ${{ secrets.TANKERKOENIG_API_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          FORCE: "1"   # Claim hat Fenster & Dedup bereits geprüft
+          FORCE: "1"   # manueller Start -> immer senden
         run: python -m spritradar.main
 
       - name: Aktualisierte Preishistorie committen
-        if: steps.claim.outputs.send == 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"

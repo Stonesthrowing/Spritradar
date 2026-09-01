@@ -28,27 +28,14 @@ def _within_send_window(now_local: dt.datetime, after: dt.time, until: dt.time) 
     return after <= now_local.time() <= until
 
 
-def run() -> int:
-    cfg = load_config()
-    secrets = load_secrets()
-    tz = ZoneInfo(cfg.timezone)
-    now_local = dt.datetime.now(tz)
+def build_report(cfg, secrets, now_local: dt.datetime, data: dict) -> str | None:
+    """Preise holen, bewerten und die fertige Tankplan-Nachricht bauen.
+
+    Schreibt die Tages-Historie in `data` fort (Speichern übernimmt der Aufrufer).
+    Gibt None zurück, wenn kein einziger Standort Daten geliefert hat.
+    Wird sowohl vom Tageslauf als auch vom „go"-Befehl des Bots benutzt.
+    """
     today = now_local.date().isoformat()
-
-    forced = os.environ.get("FORCE", "").strip() not in ("", "0", "false", "False")
-
-    data = hist.load_history()
-
-    # Sende-Gate: außerhalb des Zeitfensters oder heute schon gesendet -> nur
-    # bei FORCE (manueller Start) trotzdem weiter.
-    if not forced:
-        if not _within_send_window(now_local, cfg.send_after, cfg.send_until):
-            print(f"[Spritradar] {now_local:%H:%M} {cfg.timezone} außerhalb Sendefenster – überspringe.")
-            return 0
-        if data.get("last_sent_date") == today:
-            print(f"[Spritradar] Heute ({today}) bereits gesendet – überspringe.")
-            return 0
-
     intraday_store = itd.load_intraday()
     plans = []
     for loc in cfg.locations:
@@ -99,7 +86,7 @@ def run() -> int:
 
     if not plans:
         print("[Spritradar] Keine Ergebnisse – nichts zu senden.", file=sys.stderr)
-        return 1
+        return None
 
     # Nachrichtenlage (optional, darf den Versand nie blockieren).
     insight = None
@@ -112,7 +99,33 @@ def run() -> int:
         except Exception as exc:
             print(f"[Spritradar] News übersprungen: {exc}", file=sys.stderr)
 
-    text = build_tankplan(now_local, plans, news=insight)
+    return build_tankplan(now_local, plans, news=insight)
+
+
+def run() -> int:
+    cfg = load_config()
+    secrets = load_secrets()
+    tz = ZoneInfo(cfg.timezone)
+    now_local = dt.datetime.now(tz)
+    today = now_local.date().isoformat()
+
+    forced = os.environ.get("FORCE", "").strip() not in ("", "0", "false", "False")
+
+    data = hist.load_history()
+
+    # Sende-Gate: außerhalb des Zeitfensters oder heute schon gesendet -> nur
+    # bei FORCE (manueller Start) trotzdem weiter.
+    if not forced:
+        if not _within_send_window(now_local, cfg.send_after, cfg.send_until):
+            print(f"[Spritradar] {now_local:%H:%M} {cfg.timezone} außerhalb Sendefenster – überspringe.")
+            return 0
+        if data.get("last_sent_date") == today:
+            print(f"[Spritradar] Heute ({today}) bereits gesendet – überspringe.")
+            return 0
+
+    text = build_report(cfg, secrets, now_local, data)
+    if text is None:
+        return 1
     print("----- Nachricht -----")
     print(text)
     print("---------------------")
