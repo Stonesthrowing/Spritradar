@@ -1,11 +1,33 @@
 # Spritradar auf dem Mini-PC (Windows)
 
-GitHubs Zeitplan war unzuverlässig (Nachricht kam oft erst 9–10 Uhr). Deshalb läuft
-Spritradar jetzt **lokal auf dem Mini-PC** über den **Windows Task Scheduler** –
-pünktlich, unabhängig von GitHub, ohne Token. Der `Graphs`-Bot antwortet dadurch
-außerdem fast sofort.
+> **Status:** Der Versand läuft aktuell wieder über **GitHub Actions** (läuft von
+> allein, ohne Mini-PC). Die Nachricht kommt damit meist zwischen **7:15 und 8:45**
+> statt exakt 7:30 – GitHubs Scheduler startet geplante Läufe rund 2 h zu spät,
+> das ist eingerechnet, aber nicht auf die Minute steuerbar.
+>
+> Diese Anleitung ist der **optionale Weg zu exakt 7:30**. Sie ist erst nötig,
+> wenn dir die Spanne oben nicht reicht.
 
-Alles bleibt lokal (Daten in `data\*.json`). GitHub dient nur noch als Code-Ablage.
+Der Windows Task Scheduler startet pünktlich auf die Minute, unabhängig von
+GitHub. Der `Graphs`-Bot antwortet dadurch außerdem fast sofort statt erst nach
+bis zu zwei Stunden.
+
+Alles bleibt lokal (Daten in `data\*.json`).
+
+## Wenn beides läuft: keine doppelte Nachricht
+
+Der geplante Task ruft `run-daily.bat quiet` auf – **ohne** `FORCE`. Das Skript
+hält sich dann an Sendefenster und Tages-Dedup aus `config.json` und sendet pro
+Tag nur einmal. Da der Mini-PC um 7:30 dran ist und GitHub frühestens gegen 7:15
+startet, kann es an einzelnen Tagen trotzdem zu zwei Nachrichten kommen.
+
+Wenn der Mini-PC-Task zuverlässig läuft, deshalb den GitHub-Zeitplan abschalten:
+in `.github/workflows/daily.yml` (und optional `collect.yml`, `bot.yml`) den
+Block `schedule:` samt `cron:`-Zeilen auskommentieren, sodass nur noch
+`workflow_dispatch:` übrig bleibt.
+
+Beim **Doppelklick** auf `run-daily.bat` wird dagegen absichtlich sofort gesendet
+(FORCE) – das ist der Testweg.
 
 ## Einmalige Einrichtung
 
