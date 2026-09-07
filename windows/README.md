@@ -94,7 +94,6 @@ schtasks /Create /F /TN "Spritradar Collect" /TR "C:\Spritradar\windows\run-coll
 - `windows\run-bot.bat` (Doppelklick) → arbeitet alle offenen Chat-Befehle ab.
   Also erst in Telegram `go` schicken, dann das Skript starten.
 - `windows\run-collect.bat` → schreibt einen Messpunkt in `data\intraday.json`.
-- `windows\run-daily.bat` → schickt den Tankplan sofort, ohne Umweg über den Chat.
 
 ## Status prüfen
 

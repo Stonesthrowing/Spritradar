@@ -50,7 +50,7 @@ also **144 geplante Läufe am Tag** – ausgeliefert wurden am 24.07.2026 real
 zwei Stunden Wartezeit auf `go`.
 
 Deshalb bleibt der Lauf, der durchkommt, per **Telegram-Long-Polling** offen
-(`POLL_SECONDS`, Standard 2 h) und antwortet in Sekunden. Eine
+(`POLL_SECONDS`, Standard 5 h 30) und antwortet in Sekunden. Eine
 `concurrency`-Gruppe hält immer nur einen Lauscher am Leben; der nächste
 geplante Lauf wartet und übernimmt nahtlos. Die stündliche Preismessung
 erledigt derselbe Lauf nebenbei – dafür braucht es keinen zweiten Zeitplan.
@@ -81,10 +81,10 @@ Nacht ab. Anleitung: **[`windows/README.md`](windows/README.md)**.
 2. `Actions → Get Telegram Chat ID → Run workflow` starten.
 3. Die angezeigte Chat-ID als Secret **`TELEGRAM_CHAT_ID`** eintragen.
 
-### 3. Manuell auslösen
-Alle Workflows haben nur noch `workflow_dispatch` (kein Zeitplan mehr):
-`Actions → Spritradar Tankplan (manuell) → Run workflow` sendet sofort eine
-Nachricht – der Notnagel, falls gerade kein Lauscher aktiv ist.
+### 3. Wenn `go` nicht beantwortet wird
+Es gibt **bewusst keinen Weg mehr, eine Nachricht ohne `go` auszulösen** – auch
+keinen Knopf. Antwortet der Bot nicht, läuft gerade kein Lauscher: dann
+`Actions → Spritradar Bot → Run workflow` starten und danach `go` schicken.
 
 ## Charts: „graphs" im Telegram-Chat
 Schreib dem Bot **`graphs`** – er antwortet mit drei Charts (gestern / heute / morgen),
