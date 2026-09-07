@@ -13,6 +13,12 @@ name: Spritradar Bot
 # dass immer nur EIN Lauscher lebt; der naechste geplante Lauf wartet in der
 # Warteschlange und uebernimmt nahtlos, sobald der laufende endet.
 #
+# POLL_SECONDS = 5 h 30 min, NICHT 2 h: Bei ~2 h Auslieferungsabstand waere ein
+# 2-h-Lauscher auf Kante genaeht - ein einziger verspaeteter Lauf reisst eine
+# Luecke, in der "go" stumm bleibt. Mit 5 h 30 traegt schon ein einzelner
+# ausgelieferter Lauf ueber mehrere ausgefallene hinweg. Obergrenze ist das
+# 6-Stunden-Job-Limit von GitHub.
+#
 # Nachtruhe: Die Crons decken 03:00–20:00 UTC ab (05:00–22:00 Ortszeit im
 # Sommer). Ein „go" mitten in der Nacht wird beantwortet, sobald morgens der
 # erste Lauscher startet.
@@ -24,7 +30,7 @@ on:
     inputs:
       poll_seconds:
         description: "Wie lange lauschen (Sekunden). 0 = einmal nachsehen."
-        default: "7200"
+        default: "19800"
 
 permissions:
   contents: write
@@ -40,7 +46,7 @@ jobs:
     runs-on: ubuntu-latest
     # Etwas mehr als POLL_SECONDS, damit der Job selbst sauber endet und nicht
     # von GitHub hart abgeschnitten wird.
-    timeout-minutes: 130
+    timeout-minutes: 345
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -53,7 +59,7 @@ jobs:
           TANKERKOENIG_API_KEY: ${{ secrets.TANKERKOENIG_API_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          POLL_SECONDS: ${{ github.event.inputs.poll_seconds || '7200' }}
+          POLL_SECONDS: ${{ github.event.inputs.poll_seconds || '19800' }}
         run: python -m spritradar.bot
 
       - name: Bot-Status und Historie committen
