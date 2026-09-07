@@ -16,7 +16,7 @@ zum Abendtief. Das Modell ist genau darauf ausgerichtet.
 ## Wie es funktioniert
 
 ```
-"go" im Telegram-Chat → Poller auf dem Mini-PC (alle 2 Min)
+"go" im Telegram-Chat → Lauscher auf GitHub Actions (Long-Polling)
         │
         ├─ Tankerkönig-API   → aktuelle E10-Preise + Umkreis (Markt-Median)
         ├─ data/intraday.json→ selbst gesammelter Tagesverlauf (12-Uhr-Sprung, Abendtief)
@@ -38,19 +38,31 @@ Je mehr eigene Daten, desto schärfer (stationsspezifisch ab ~4 Wochen).
   `go`-Lauf den günstigsten Preis in `data/history.json`, und ein stündlicher
   stiller Sammler schreibt Momentaufnahmen nach `data/intraday.json`. Der Score
   wird mit jedem Tag aussagekräftiger (ab ~4 Tagen Historie).
-- **Zeitplan:** keiner. Es gibt keine geplanten Läufe mehr – weder hier noch bei
-  GitHub. Alle Workflows in `.github/workflows/` sind nur noch manuell
-  auslösbar (`Run workflow`) und dienen als Notnagel.
-- **Was laufen muss:** ein Poller, der `go` überhaupt hört. Der läuft auf dem
-  Mini-PC (Windows Task Scheduler, alle 2 Minuten) – Antwort in Sekunden.
-  Einrichtung mit einem Doppelklick: **[`windows/README.md`](windows/README.md)**.
+- **Es sendet nichts von allein.** Der Tankplan kommt ausschließlich auf `go`.
+- **Was laufen muss:** ein Lauscher, der `go` überhaupt hört. Der läuft auf
+  **GitHub Actions** (`.github/workflows/bot.yml`) – keine Einrichtung nötig.
+
+### Warum ein Lauscher und kein Poll-Zeitplan
+
+GitHub drosselt geplante Läufe massiv. Der frühere Poller stand auf `*/10`,
+also **144 geplante Läufe am Tag** – ausgeliefert wurden am 24.07.2026 real
+**drei**, im Abstand von ~2 h. Ein kurzer Poll pro Lauf hieße also bis zu
+zwei Stunden Wartezeit auf `go`.
+
+Deshalb bleibt der Lauf, der durchkommt, per **Telegram-Long-Polling** offen
+(`POLL_SECONDS`, Standard 2 h) und antwortet in Sekunden. Eine
+`concurrency`-Gruppe hält immer nur einen Lauscher am Leben; der nächste
+geplante Lauf wartet und übernimmt nahtlos. Die stündliche Preismessung
+erledigt derselbe Lauf nebenbei – dafür braucht es keinen zweiten Zeitplan.
+
+**Abdeckung:** 03:00–20:00 UTC (05:00–22:00 Ortszeit im Sommer). Ein `go`
+mitten in der Nacht wird beantwortet, sobald morgens der erste Lauscher startet.
 
 ## Einrichtung
 
-Auf dem Mini-PC: Repo klonen, `windows\secrets.bat` ausfüllen, dann
-`windows\install-tasks.bat` doppelklicken – das legt die beiden Aufgaben an
-(Bot alle 2 Min, Collect stündlich). Details:
-**[`windows/README.md`](windows/README.md)**.
+Nichts zu tun – nur die Secrets müssen im Repo hinterlegt sein (siehe unten).
+Der Mini-PC ist **optional**: Er antwortet noch schneller und deckt auch die
+Nacht ab. Anleitung: **[`windows/README.md`](windows/README.md)**.
 
 ## Manueller Betrieb über GitHub (optional / Test)
 
@@ -72,7 +84,7 @@ Auf dem Mini-PC: Repo klonen, `windows\secrets.bat` ausfüllen, dann
 ### 3. Manuell auslösen
 Alle Workflows haben nur noch `workflow_dispatch` (kein Zeitplan mehr):
 `Actions → Spritradar Tankplan (manuell) → Run workflow` sendet sofort eine
-Nachricht – der Notnagel, falls der Mini-PC aus ist.
+Nachricht – der Notnagel, falls gerade kein Lauscher aktiv ist.
 
 ## Charts: „graphs" im Telegram-Chat
 Schreib dem Bot **`graphs`** – er antwortet mit drei Charts (gestern / heute / morgen),
@@ -82,11 +94,12 @@ dem Super-E10-Tagesverlauf über die Uhrzeit.
   aktuelle Preisniveau angelegt). „Heute" ist bis zur aktuellen Uhrzeit gemessen,
   danach extrapoliert; „gestern" ist gemessen (sobald Daten vorliegen), „morgen"
   komplett Prognose.
-- **Datenbasis:** der **stündliche** Sammel-Job (`spritradar.collect`, Task auf dem
-  Mini-PC) schreibt echte Preise in `data/intraday.json`. In den ersten ein bis zwei
-  Tagen sind die Kurven noch modelliert; danach werden gestern/heute real.
-- **Antwortzeit:** Der Poller (`spritradar.bot`) läuft lokal alle **2 Minuten**
-  → Antwort fast sofort. Intervall im Task Scheduler anpassbar.
+- **Datenbasis:** die **stündliche** Preismessung (`spritradar.collect`) schreibt
+  echte Preise in `data/intraday.json`; der Lauscher erledigt sie nebenbei mit.
+  In den ersten ein bis zwei Tagen sind die Kurven noch modelliert; danach
+  werden gestern/heute real.
+- **Antwortzeit:** Sekunden, solange ein Lauscher aktiv ist (05:00–22:00
+  Ortszeit). Nachts erst, wenn morgens der nächste startet.
 
 ## Standorte & Einstellungen anpassen
 Alles in `config.json`:

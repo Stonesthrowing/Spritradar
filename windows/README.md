@@ -3,9 +3,17 @@
 Spritradar schickt **keine Nachricht mehr von allein**. Der Tankplan kommt nur
 noch auf Zuruf: Du schreibst dem Bot in Telegram **`go`**, er antwortet.
 
-Damit „go" gehört wird, muss auf dem Mini-PC ein kleiner Poller laufen — der
-fragt alle 2 Minuten bei Telegram nach. Genau das richten diese Skripte ein.
-GitHub hat **keinen Zeitplan mehr**; alle Workflows dort sind nur noch manuell.
+> **Der Mini-PC ist optional.** Der `go`-Lauscher läuft inzwischen auf GitHub
+> Actions und braucht keine Einrichtung. Diese Anleitung lohnt sich, wenn du
+> **auch nachts** antworten willst (GitHub deckt 05:00–22:00 Ortszeit ab) oder
+> es noch schneller magst.
+
+Damit „go" gehört wird, muss ein Poller laufen — auf dem Mini-PC fragt er alle
+2 Minuten bei Telegram nach. Genau das richten diese Skripte ein.
+
+Wenn beides läuft, kann ein `go` doppelt beantwortet werden (beide holen sich
+dieselbe Nachricht ab). Dann in `.github/workflows/bot.yml` den `schedule:`-Block
+auskommentieren, sodass nur `workflow_dispatch:` bleibt.
 
 | Befehl im Chat | Antwort |
 | --- | --- |
