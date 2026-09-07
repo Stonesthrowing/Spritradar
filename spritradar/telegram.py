@@ -35,11 +35,20 @@ def send_photo(token: str, chat_id: str | int, photo_path: str, caption: str = "
     return data["result"]
 
 
-def get_updates(token: str, offset: int | None = None, timeout: int = 20) -> list[dict]:
-    params: dict = {"timeout": 0}
+def get_updates(
+    token: str, offset: int | None = None, timeout: int = 20, long_poll: int = 0
+) -> list[dict]:
+    """Neue Updates holen.
+
+    `long_poll` > 0 hält die Verbindung so viele Sekunden offen, bis etwas
+    ankommt (Telegram-Long-Polling) – dann antwortet der Bot in Sekunden statt
+    erst beim nächsten Poll. Der HTTP-Timeout muss darüber liegen, sonst bricht
+    requests die Verbindung ab, bevor Telegram antwortet.
+    """
+    params: dict = {"timeout": max(0, long_poll)}
     if offset is not None:
         params["offset"] = offset
-    return _call(token, "getUpdates", params, timeout=timeout)
+    return _call(token, "getUpdates", params, timeout=max(timeout, long_poll + 15))
 
 
 def discover_chat_ids(token: str) -> list[int]:

@@ -4,20 +4,28 @@
     graphs  -> drei Tagesverlauf-Charts (gestern / heute / morgen)
 
 Es gibt keinen Tageszeitplan mehr: Die Nachricht kommt nur noch auf „go".
-Der Poller holt neue Nachrichten via getUpdates; der Update-Offset liegt in
-data/bot_state.json, damit ein Befehl nicht doppelt beantwortet wird.
+Der Update-Offset liegt in data/bot_state.json, damit ein Befehl nicht doppelt
+beantwortet wird.
+
+Zwei Betriebsarten (siehe run()):
+  POLL_SECONDS leer/0  -> einmal nachsehen (Mini-PC-Task alle 2 Minuten)
+  POLL_SECONDS > 0     -> so lange lauschen (GitHub Actions, Long-Polling);
+                          nebenbei stuendlich eine Preismessung schreiben
 """
 
 from __future__ import annotations
 
 import datetime as dt
 import json
+import os
 import re
 import tempfile
+import time
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from . import charts
+from . import collect
 from . import history as hist
 from . import intraday as itd
 from . import main as main_mod
@@ -29,6 +37,8 @@ CHART_TRIGGER = "graph"  # matcht "Graphs", "/graphs", "graph" …
 PLAN_TRIGGER = "go"      # matcht "go", "/go", "Go" – als ganzes Wort
 # Ganzes Wort, damit "google", "Bogen" o. Ä. den Tankplan nicht auslösen.
 _WORD_GO = re.compile(rf"(?<!\w){PLAN_TRIGGER}(?!\w)")
+# Wie lange eine einzelne Long-Poll-Anfrage offen bleibt (Telegram erlaubt <=50).
+LONG_POLL_SECONDS = 50
 CAPTION_BASE = (
     "⛽ Tagesverlauf Super E10 – gestern / heute / morgen.\n"
     "Durchgezogen = gemessen, gestrichelt = Prognose."
@@ -59,17 +69,8 @@ def _make_charts(cfg, now_local) -> tuple[str, str]:
     return charts.render(days, now_hour, out), caption
 
 
-def run() -> int:
-    cfg = load_config()
-    secrets = load_secrets()
-    tz = ZoneInfo(cfg.timezone)
-
-    offset = _load_offset()
-    updates = telegram.get_updates(secrets.telegram_bot_token, offset=offset)
-    if not updates:
-        print("[bot] keine neuen Updates.")
-        return 0
-
+def _handle_batch(cfg, secrets, tz, updates: list[dict], offset: int | None) -> int:
+    """Einen Schwung Updates beantworten. Gibt die Zahl der Antworten zurück."""
     max_id = offset - 1 if offset else 0
     handled = 0
     history = None
@@ -114,6 +115,80 @@ def run() -> int:
         hist.save_history(history)
     _save_offset(max_id + 1)
     print(f"[bot] {len(updates)} Update(s) verarbeitet, {handled} Antwort(en).")
+    return handled
+
+
+def run() -> int:
+    """Einmal nachsehen – oder mit POLL_SECONDS>0 eine Weile lauschen.
+
+    Einmal-Modus (POLL_SECONDS leer/0) ist der Mini-PC-Weg: Ein Task ruft das
+    Skript alle 2 Minuten auf.
+
+    Lausch-Modus ist der GitHub-Weg. Hintergrund: GitHub liefert geplante Läufe
+    massiv gedrosselt aus – von 144 geplanten Läufen am Tag (`*/10`) kamen
+    real nur ~3 an. Ein kurzer Poll pro Lauf hiesse also bis zu 2 h Wartezeit
+    auf „go". Deshalb bleibt der Lauf, der durchkommt, per Long-Polling offen
+    und antwortet in Sekunden, statt einmal kurz nachzusehen.
+    """
+    cfg = load_config()
+    secrets = load_secrets()
+    tz = ZoneInfo(cfg.timezone)
+
+    try:
+        poll_seconds = int(os.environ.get("POLL_SECONDS", "0").strip() or 0)
+    except ValueError:
+        poll_seconds = 0
+
+    if poll_seconds <= 0:
+        offset = _load_offset()
+        updates = telegram.get_updates(secrets.telegram_bot_token, offset=offset)
+        if not updates:
+            print("[bot] keine neuen Updates.")
+            return 0
+        _handle_batch(cfg, secrets, tz, updates, offset)
+        return 0
+
+    deadline = time.monotonic() + poll_seconds
+    print(f"[bot] Lausche {poll_seconds // 60} Minuten auf „go\" / „graphs\" …")
+    total = 0
+    errors = 0
+    collected_hour = None
+    while time.monotonic() < deadline:
+        # Der Lauscher laeuft ohnehin durch -> die stuendliche Preismessung
+        # gleich hier miterledigen, statt dafuer einen zweiten Zeitplan zu
+        # brauchen. Darf den Lauscher nie umbringen.
+        hour = dt.datetime.now(tz).hour
+        if hour != collected_hour:
+            collected_hour = hour
+            try:
+                collect.run()
+            except Exception as exc:
+                print(f"[bot] Preismessung übersprungen: {exc}")
+
+        # Long-Poll nie über die Deadline hinaus, damit der Job planbar endet.
+        wait = int(min(LONG_POLL_SECONDS, deadline - time.monotonic()))
+        if wait <= 0:
+            break
+        offset = _load_offset()
+        try:
+            updates = telegram.get_updates(
+                secrets.telegram_bot_token, offset=offset, long_poll=wait
+            )
+            errors = 0
+        except Exception as exc:
+            # Netzwerkaussetzer dürfen den Lauscher nicht beenden.
+            errors += 1
+            print(f"[bot] getUpdates fehlgeschlagen ({errors}): {exc}")
+            if errors >= 5:
+                print("[bot] zu viele Fehler hintereinander – beende.")
+                return 1
+            # Nie über die Deadline hinaus schlafen.
+            time.sleep(max(0, min(60, 5 * errors, deadline - time.monotonic())))
+            continue
+        if updates:
+            total += _handle_batch(cfg, secrets, tz, updates, offset)
+
+    print(f"[bot] Lauschzeit vorbei, {total} Antwort(en) gesendet.")
     return 0
 
 
