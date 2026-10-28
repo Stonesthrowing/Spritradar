@@ -1,5 +1,5 @@
 {
-  "last_sent_date": "2026-10-27",
+  "last_sent_date": "2026-10-28",
   "locations": {
     "47798": [
       {
@@ -138,6 +138,14 @@
         "station": "Supermarkt-Tankstelle (KREFELD)",
         "preferred": {
           "JET Oranierring 51": 2.069
+        }
+      },
+      {
+        "date": "2026-10-28",
+        "min_price": 2.069,
+        "station": "STAR (Krefeld)",
+        "preferred": {
+          "JET Oranierring 51": 2.209
         }
       }
     ],
